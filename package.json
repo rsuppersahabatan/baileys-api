@@ -21,21 +21,19 @@
     },
     "dependencies": {
         "@whiskeysockets/baileys": "^6.7.9",
-        "axios": "^1.7.7",
+        "axios": "^1.7.9",
         "cors": "^2.8.5",
-        "dotenv": "^16.4.5",
-        "express": "^4.21.1",
-        "express-validator": "^7.2.0",
+        "dotenv": "^16.4.7",
+        "express": "^4.21.2",
+        "express-validator": "^7.2.1",
         "node-cache": "^5.1.2",
         "node-cleanup": "^2.1.2",
-        "pino": "^9.5.0",
+        "pino": "^9.6.0",
         "qrcode": "^1.5.4"
     },
     "devDependencies": {
-        "eslint": "^9.13.0",
-        "eslint-config-prettier": "^9.1.0",
-        "eslint-config-xo": "^0.46.0",
-        "eslint-plugin-prettier": "^5.2.1",
-        "prettier": "^3.3.3"
+        "eslint": "^8.0.0",
+        "eslint-plugin-prettier": "^5.2.3",
+        "prettier": "^3.4.2"
     }
 }
