@@ -108,7 +108,7 @@ At this moment we are working to bring more functionalities
     * Get My Profile {name, phote, status}
     * Get Profile User
     * Block And Unblock User
-
+    * Public Story Status (NEW)
 ### Webhook
     * Global webhook
 
