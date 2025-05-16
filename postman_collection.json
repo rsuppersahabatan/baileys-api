@@ -347,7 +347,7 @@
 								},
 								{
 									"key": "phoneNumber",
-									"value": "573",
+									"value": "{{jid}}",
 									"description": "Telephone number with international code used for authentication",
 									"type": "text",
 									"disabled": true
@@ -663,7 +663,8 @@
 						}
 					]
 				}
-			]
+			],
+			"description": "A session refers to an instance of WhatsApp that you can implement for the use of the API, you can manage an unlimited number of sessions"
 		},
 		{
 			"name": "Chats",
@@ -787,8 +788,8 @@
 										"header": [
 											{
 												"key": "Content-Type",
-												"name": "Content-Type",
 												"value": "application/json",
+												"name": "Content-Type",
 												"type": "text"
 											}
 										],
@@ -973,8 +974,8 @@
 										"header": [
 											{
 												"key": "Content-Type",
-												"name": "Content-Type",
 												"value": "application/json",
+												"name": "Content-Type",
 												"type": "text"
 											}
 										],
@@ -1159,8 +1160,8 @@
 										"header": [
 											{
 												"key": "Content-Type",
-												"name": "Content-Type",
 												"value": "application/json",
+												"name": "Content-Type",
 												"type": "text"
 											}
 										],
@@ -1345,8 +1346,8 @@
 										"header": [
 											{
 												"key": "Content-Type",
-												"name": "Content-Type",
 												"value": "application/json",
+												"name": "Content-Type",
 												"type": "text"
 											}
 										],
@@ -1531,8 +1532,8 @@
 										"header": [
 											{
 												"key": "Content-Type",
-												"name": "Content-Type",
 												"value": "application/json",
+												"name": "Content-Type",
 												"type": "text"
 											}
 										],
@@ -1717,8 +1718,8 @@
 										"header": [
 											{
 												"key": "Content-Type",
-												"name": "Content-Type",
 												"value": "application/json",
+												"name": "Content-Type",
 												"type": "text"
 											}
 										],
@@ -1801,7 +1802,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"sticker\": {\r\n            \"url\": \"https://dayax.net/Media/sticker_mv.webp\"\r\n        }\r\n    }\r\n}",
+									"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"sticker\": {\r\n            \"url\": \"https://raw.githubusercontent.com/WhiskeySockets/Baileys/4fab130d07594afc64da929bd5ef4fcab3354530/Media/octopus.webp\"\r\n        }\r\n    }\r\n}",
 									"options": {
 										"raw": {
 											"language": "json"
@@ -1903,8 +1904,8 @@
 										"header": [
 											{
 												"key": "Content-Type",
-												"name": "Content-Type",
 												"value": "application/json",
+												"name": "Content-Type",
 												"type": "text"
 											}
 										],
@@ -2089,8 +2090,8 @@
 										"header": [
 											{
 												"key": "Content-Type",
-												"name": "Content-Type",
 												"value": "application/json",
+												"name": "Content-Type",
 												"type": "text"
 											}
 										],
@@ -2275,8 +2276,8 @@
 										"header": [
 											{
 												"key": "Content-Type",
-												"name": "Content-Type",
 												"value": "application/json",
+												"name": "Content-Type",
 												"type": "text"
 											}
 										],
@@ -2461,944 +2462,14 @@
 										"header": [
 											{
 												"key": "Content-Type",
-												"name": "Content-Type",
 												"value": "application/json",
+												"name": "Content-Type",
 												"type": "text"
 											}
 										],
 										"body": {
 											"mode": "raw",
 											"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"react\": {\r\n            \"text\": \"💖\",\r\n            \"key\": {\r\n                \"remoteJid\": \"120363027219XXXX@g.us\",\r\n                \"fromMe\": false,\r\n                \"id\": \"6F4132748XXXXXX\",\r\n                \"participant\": \"628231xxxxx@s.whatsapp.net\"\r\n            }\r\n        }\r\n    }\r\n}",
-											"options": {
-												"raw": {
-													"language": "json"
-												}
-											}
-										},
-										"url": {
-											"raw": "{{base_url}}/chats/send?id={{session}}",
-											"host": [
-												"{{base_url}}"
-											],
-											"path": [
-												"chats",
-												"send"
-											],
-											"query": [
-												{
-													"key": "id",
-													"value": "{{session}}",
-													"description": "Your created session id."
-												}
-											]
-										}
-									},
-									"status": "Internal Server Error",
-									"code": 500,
-									"_postman_previewlanguage": "json",
-									"header": [
-										{
-											"key": "X-Powered-By",
-											"value": "Express"
-										},
-										{
-											"key": "Content-Type",
-											"value": "application/json; charset=utf-8"
-										},
-										{
-											"key": "Content-Length",
-											"value": "67"
-										},
-										{
-											"key": "ETag",
-											"value": "W/\"43-VVa944bJzICOqHAXbrMtuGViNDY\""
-										},
-										{
-											"key": "Date",
-											"value": "Mon, 14 Feb 2022 13:58:14 GMT"
-										},
-										{
-											"key": "Connection",
-											"value": "keep-alive"
-										},
-										{
-											"key": "Keep-Alive",
-											"value": "timeout=5"
-										}
-									],
-									"cookie": [],
-									"body": "{\n    \"success\": false,\n    \"message\": \"Failed to send the message.\",\n    \"data\": {}\n}"
-								}
-							]
-						},
-						{
-							"name": "Send Message React Copy",
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json",
-										"type": "text",
-										"disabled": true
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"react\": {\r\n            \"text\": \"💖\",\r\n            \"key\": {\r\n                \"remoteJid\": \"120363027219XXXX@g.us\",\r\n                \"fromMe\": false,\r\n                \"id\": \"6F4132748XXXXXX\",\r\n                \"participant\": \"628231xxxxx@s.whatsapp.net\"\r\n            }\r\n        }\r\n    }\r\n}",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{base_url}}/chats/send?id={{session}}",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"chats",
-										"send"
-									],
-									"query": [
-										{
-											"key": "id",
-											"value": "{{session}}",
-											"description": "Your created session id."
-										}
-									]
-								},
-								"description": "Send reaction to someone, it is important to specify the identifier of the message"
-							},
-							"response": [
-								{
-									"name": "Response Success",
-									"originalRequest": {
-										"method": "POST",
-										"header": [],
-										"body": {
-											"mode": "raw",
-											"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"react\": {\r\n            \"text\": \"💖\",\r\n            \"key\": {\r\n                \"remoteJid\": \"120363027219XXXX@g.us\",\r\n                \"fromMe\": false,\r\n                \"id\": \"6F4132748XXXXXX\",\r\n                \"participant\": \"628231xxxxx@s.whatsapp.net\"\r\n            }\r\n        }\r\n    }\r\n}",
-											"options": {
-												"raw": {
-													"language": "json"
-												}
-											}
-										},
-										"url": {
-											"raw": "{{base_url}}/chats/send?id={{session}}",
-											"host": [
-												"{{base_url}}"
-											],
-											"path": [
-												"chats",
-												"send"
-											],
-											"query": [
-												{
-													"key": "id",
-													"value": "{{session}}",
-													"description": "Your created session id."
-												}
-											]
-										}
-									},
-									"status": "OK",
-									"code": 200,
-									"_postman_previewlanguage": "json",
-									"header": [
-										{
-											"key": "X-Powered-By",
-											"value": "Express"
-										},
-										{
-											"key": "Content-Type",
-											"value": "application/json; charset=utf-8"
-										},
-										{
-											"key": "Content-Length",
-											"value": "78"
-										},
-										{
-											"key": "ETag",
-											"value": "W/\"4e-ZvkGSI8StDnkSjZX5UQTQVUBqSQ\""
-										},
-										{
-											"key": "Date",
-											"value": "Fri, 27 May 2022 14:57:19 GMT"
-										},
-										{
-											"key": "Connection",
-											"value": "keep-alive"
-										},
-										{
-											"key": "Keep-Alive",
-											"value": "timeout=5"
-										}
-									],
-									"cookie": [],
-									"body": "{\n    \"success\": true,\n    \"message\": \"The message has been successfully sent.\",\n    \"data\": {}\n}"
-								},
-								{
-									"name": "Response Failed",
-									"originalRequest": {
-										"method": "POST",
-										"header": [
-											{
-												"key": "Content-Type",
-												"name": "Content-Type",
-												"value": "application/json",
-												"type": "text"
-											}
-										],
-										"body": {
-											"mode": "raw",
-											"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"react\": {\r\n            \"text\": \"💖\",\r\n            \"key\": {\r\n                \"remoteJid\": \"120363027219XXXX@g.us\",\r\n                \"fromMe\": false,\r\n                \"id\": \"6F4132748XXXXXX\",\r\n                \"participant\": \"628231xxxxx@s.whatsapp.net\"\r\n            }\r\n        }\r\n    }\r\n}",
-											"options": {
-												"raw": {
-													"language": "json"
-												}
-											}
-										},
-										"url": {
-											"raw": "{{base_url}}/chats/send?id={{session}}",
-											"host": [
-												"{{base_url}}"
-											],
-											"path": [
-												"chats",
-												"send"
-											],
-											"query": [
-												{
-													"key": "id",
-													"value": "{{session}}",
-													"description": "Your created session id."
-												}
-											]
-										}
-									},
-									"status": "Internal Server Error",
-									"code": 500,
-									"_postman_previewlanguage": "json",
-									"header": [
-										{
-											"key": "X-Powered-By",
-											"value": "Express"
-										},
-										{
-											"key": "Content-Type",
-											"value": "application/json; charset=utf-8"
-										},
-										{
-											"key": "Content-Length",
-											"value": "67"
-										},
-										{
-											"key": "ETag",
-											"value": "W/\"43-VVa944bJzICOqHAXbrMtuGViNDY\""
-										},
-										{
-											"key": "Date",
-											"value": "Mon, 14 Feb 2022 13:58:14 GMT"
-										},
-										{
-											"key": "Connection",
-											"value": "keep-alive"
-										},
-										{
-											"key": "Keep-Alive",
-											"value": "timeout=5"
-										}
-									],
-									"cookie": [],
-									"body": "{\n    \"success\": false,\n    \"message\": \"Failed to send the message.\",\n    \"data\": {}\n}"
-								}
-							]
-						},
-						{
-							"name": "Send Message List",
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json",
-										"type": "text",
-										"disabled": true
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"text\": \"This is a list\",\r\n        \"footer\": \"nice footer, link: https://google.com\",\r\n        \"title\": \"Amazing boldfaced list title\",\r\n        \"buttonText\": \"Required, text on the button to view the list\",\r\n        \"sections\": [\r\n            {\r\n                \"title\": \"Section 1\",\r\n                \"rows\": [\r\n                    {\r\n                        \"title\": \"Option 1\",\r\n                        \"rowId\": \"option1\"\r\n                    },\r\n                    {\r\n                        \"title\": \"Option 2\",\r\n                        \"rowId\": \"option2\",\r\n                        \"description\": \"This is a description\"\r\n                    }\r\n                ]\r\n            },\r\n            {\r\n                \"title\": \"Section 2\",\r\n                \"rows\": [\r\n                    {\r\n                        \"title\": \"Option 3\",\r\n                        \"rowId\": \"option3\"\r\n                    },\r\n                    {\r\n                        \"title\": \"Option 4\",\r\n                        \"rowId\": \"option4\",\r\n                        \"description\": \"This is a description V2\"\r\n                    }\r\n                ]\r\n            }\r\n        ]\r\n    }\r\n}",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{base_url}}/chats/send?id={{session}}",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"chats",
-										"send"
-									],
-									"query": [
-										{
-											"key": "id",
-											"value": "{{session}}",
-											"description": "Your created session id."
-										}
-									]
-								},
-								"description": "Send List to someone, it is recommended to use the format provided\n\nModify to your liking"
-							},
-							"response": [
-								{
-									"name": "Response Success",
-									"originalRequest": {
-										"method": "POST",
-										"header": [],
-										"body": {
-											"mode": "raw",
-											"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"text\": \"This is a list\",\r\n        \"footer\": \"nice footer, link: https://google.com\",\r\n        \"title\": \"Amazing boldfaced list title\",\r\n        \"buttonText\": \"Required, text on the button to view the list\",\r\n        \"sections\": [\r\n            {\r\n                \"title\": \"Section 1\",\r\n                \"rows\": [\r\n                    {\r\n                        \"title\": \"Option 1\",\r\n                        \"rowId\": \"option1\"\r\n                    },\r\n                    {\r\n                        \"title\": \"Option 2\",\r\n                        \"rowId\": \"option2\",\r\n                        \"description\": \"This is a description\"\r\n                    }\r\n                ]\r\n            },\r\n            {\r\n                \"title\": \"Section 2\",\r\n                \"rows\": [\r\n                    {\r\n                        \"title\": \"Option 3\",\r\n                        \"rowId\": \"option3\"\r\n                    },\r\n                    {\r\n                        \"title\": \"Option 4\",\r\n                        \"rowId\": \"option4\",\r\n                        \"description\": \"This is a description V2\"\r\n                    }\r\n                ]\r\n            }\r\n        ]\r\n    }\r\n}",
-											"options": {
-												"raw": {
-													"language": "json"
-												}
-											}
-										},
-										"url": {
-											"raw": "{{base_url}}/chats/send?id={{session}}",
-											"host": [
-												"{{base_url}}"
-											],
-											"path": [
-												"chats",
-												"send"
-											],
-											"query": [
-												{
-													"key": "id",
-													"value": "{{session}}",
-													"description": "Your created session id."
-												}
-											]
-										}
-									},
-									"status": "OK",
-									"code": 200,
-									"_postman_previewlanguage": "json",
-									"header": [
-										{
-											"key": "X-Powered-By",
-											"value": "Express"
-										},
-										{
-											"key": "Content-Type",
-											"value": "application/json; charset=utf-8"
-										},
-										{
-											"key": "Content-Length",
-											"value": "78"
-										},
-										{
-											"key": "ETag",
-											"value": "W/\"4e-ZvkGSI8StDnkSjZX5UQTQVUBqSQ\""
-										},
-										{
-											"key": "Date",
-											"value": "Fri, 27 May 2022 14:57:19 GMT"
-										},
-										{
-											"key": "Connection",
-											"value": "keep-alive"
-										},
-										{
-											"key": "Keep-Alive",
-											"value": "timeout=5"
-										}
-									],
-									"cookie": [],
-									"body": "{\n    \"success\": true,\n    \"message\": \"The message has been successfully sent.\",\n    \"data\": {}\n}"
-								},
-								{
-									"name": "Response Failed",
-									"originalRequest": {
-										"method": "POST",
-										"header": [
-											{
-												"key": "Content-Type",
-												"name": "Content-Type",
-												"value": "application/json",
-												"type": "text"
-											}
-										],
-										"body": {
-											"mode": "raw",
-											"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"text\": \"This is a list\",\r\n        \"footer\": \"nice footer, link: https://google.com\",\r\n        \"title\": \"Amazing boldfaced list title\",\r\n        \"buttonText\": \"Required, text on the button to view the list\",\r\n        \"sections\": [\r\n            {\r\n                \"title\": \"Section 1\",\r\n                \"rows\": [\r\n                    {\r\n                        \"title\": \"Option 1\",\r\n                        \"rowId\": \"option1\"\r\n                    },\r\n                    {\r\n                        \"title\": \"Option 2\",\r\n                        \"rowId\": \"option2\",\r\n                        \"description\": \"This is a description\"\r\n                    }\r\n                ]\r\n            },\r\n            {\r\n                \"title\": \"Section 2\",\r\n                \"rows\": [\r\n                    {\r\n                        \"title\": \"Option 3\",\r\n                        \"rowId\": \"option3\"\r\n                    },\r\n                    {\r\n                        \"title\": \"Option 4\",\r\n                        \"rowId\": \"option4\",\r\n                        \"description\": \"This is a description V2\"\r\n                    }\r\n                ]\r\n            }\r\n        ]\r\n    }\r\n}",
-											"options": {
-												"raw": {
-													"language": "json"
-												}
-											}
-										},
-										"url": {
-											"raw": "{{base_url}}/chats/send?id={{session}}",
-											"host": [
-												"{{base_url}}"
-											],
-											"path": [
-												"chats",
-												"send"
-											],
-											"query": [
-												{
-													"key": "id",
-													"value": "{{session}}",
-													"description": "Your created session id."
-												}
-											]
-										}
-									},
-									"status": "Internal Server Error",
-									"code": 500,
-									"_postman_previewlanguage": "json",
-									"header": [
-										{
-											"key": "X-Powered-By",
-											"value": "Express"
-										},
-										{
-											"key": "Content-Type",
-											"value": "application/json; charset=utf-8"
-										},
-										{
-											"key": "Content-Length",
-											"value": "67"
-										},
-										{
-											"key": "ETag",
-											"value": "W/\"43-VVa944bJzICOqHAXbrMtuGViNDY\""
-										},
-										{
-											"key": "Date",
-											"value": "Mon, 14 Feb 2022 13:58:14 GMT"
-										},
-										{
-											"key": "Connection",
-											"value": "keep-alive"
-										},
-										{
-											"key": "Keep-Alive",
-											"value": "timeout=5"
-										}
-									],
-									"cookie": [],
-									"body": "{\n    \"success\": false,\n    \"message\": \"Failed to send the message.\",\n    \"data\": {}\n}"
-								}
-							]
-						},
-						{
-							"name": "Send Message Buttons",
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json",
-										"type": "text",
-										"disabled": true
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"text\": \"Hi it's button message\",\r\n        \"footer\": \"Hello World\",\r\n        \"buttons\": [\r\n            {\r\n                \"buttonId\": \"id1\",\r\n                \"buttonText\": {\r\n                    \"displayText\": \"Button 1\"\r\n                },\r\n                \"type\": 1\r\n            },\r\n            {\r\n                \"buttonId\": \"id2\",\r\n                \"buttonText\": {\r\n                    \"displayText\": \"Button 2\"\r\n                },\r\n                \"type\": 1\r\n            },\r\n            {\r\n                \"buttonId\": \"id3\",\r\n                \"buttonText\": {\r\n                    \"displayText\": \"Button 3\"\r\n                },\r\n                \"type\": 1\r\n            }\r\n        ],\r\n        \"headerType\": 1\r\n    }\r\n}",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{base_url}}/chats/send?id={{session}}",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"chats",
-										"send"
-									],
-									"query": [
-										{
-											"key": "id",
-											"value": "{{session}}",
-											"description": "Your created session id."
-										}
-									]
-								},
-								"description": "Send Buttons to someone, it is recommended to use the format provided\n\nModify to your liking"
-							},
-							"response": [
-								{
-									"name": "Response Success",
-									"originalRequest": {
-										"method": "POST",
-										"header": [],
-										"body": {
-											"mode": "raw",
-											"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"text\": \"Hi it's button message\",\r\n        \"footer\": \"Hello World\",\r\n        \"buttons\": [\r\n            {\r\n                \"buttonId\": \"id1\",\r\n                \"buttonText\": {\r\n                    \"displayText\": \"Button 1\"\r\n                },\r\n                \"type\": 1\r\n            },\r\n            {\r\n                \"buttonId\": \"id2\",\r\n                \"buttonText\": {\r\n                    \"displayText\": \"Button 2\"\r\n                },\r\n                \"type\": 1\r\n            },\r\n            {\r\n                \"buttonId\": \"id3\",\r\n                \"buttonText\": {\r\n                    \"displayText\": \"Button 3\"\r\n                },\r\n                \"type\": 1\r\n            }\r\n        ],\r\n        \"headerType\": 1\r\n    }\r\n}",
-											"options": {
-												"raw": {
-													"language": "json"
-												}
-											}
-										},
-										"url": {
-											"raw": "{{base_url}}/chats/send?id={{session}}",
-											"host": [
-												"{{base_url}}"
-											],
-											"path": [
-												"chats",
-												"send"
-											],
-											"query": [
-												{
-													"key": "id",
-													"value": "{{session}}",
-													"description": "Your created session id."
-												}
-											]
-										}
-									},
-									"status": "OK",
-									"code": 200,
-									"_postman_previewlanguage": "json",
-									"header": [
-										{
-											"key": "X-Powered-By",
-											"value": "Express"
-										},
-										{
-											"key": "Content-Type",
-											"value": "application/json; charset=utf-8"
-										},
-										{
-											"key": "Content-Length",
-											"value": "78"
-										},
-										{
-											"key": "ETag",
-											"value": "W/\"4e-ZvkGSI8StDnkSjZX5UQTQVUBqSQ\""
-										},
-										{
-											"key": "Date",
-											"value": "Fri, 27 May 2022 14:57:19 GMT"
-										},
-										{
-											"key": "Connection",
-											"value": "keep-alive"
-										},
-										{
-											"key": "Keep-Alive",
-											"value": "timeout=5"
-										}
-									],
-									"cookie": [],
-									"body": "{\n    \"success\": true,\n    \"message\": \"The message has been successfully sent.\",\n    \"data\": {}\n}"
-								},
-								{
-									"name": "Response Failed",
-									"originalRequest": {
-										"method": "POST",
-										"header": [
-											{
-												"key": "Content-Type",
-												"name": "Content-Type",
-												"value": "application/json",
-												"type": "text"
-											}
-										],
-										"body": {
-											"mode": "raw",
-											"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"text\": \"Hi it's button message\",\r\n        \"footer\": \"Hello World\",\r\n        \"buttons\": [\r\n            {\r\n                \"buttonId\": \"id1\",\r\n                \"buttonText\": {\r\n                    \"displayText\": \"Button 1\"\r\n                },\r\n                \"type\": 1\r\n            },\r\n            {\r\n                \"buttonId\": \"id2\",\r\n                \"buttonText\": {\r\n                    \"displayText\": \"Button 2\"\r\n                },\r\n                \"type\": 1\r\n            },\r\n            {\r\n                \"buttonId\": \"id3\",\r\n                \"buttonText\": {\r\n                    \"displayText\": \"Button 3\"\r\n                },\r\n                \"type\": 1\r\n            }\r\n        ],\r\n        \"headerType\": 1\r\n    }\r\n}",
-											"options": {
-												"raw": {
-													"language": "json"
-												}
-											}
-										},
-										"url": {
-											"raw": "{{base_url}}/chats/send?id={{session}}",
-											"host": [
-												"{{base_url}}"
-											],
-											"path": [
-												"chats",
-												"send"
-											],
-											"query": [
-												{
-													"key": "id",
-													"value": "{{session}}",
-													"description": "Your created session id."
-												}
-											]
-										}
-									},
-									"status": "Internal Server Error",
-									"code": 500,
-									"_postman_previewlanguage": "json",
-									"header": [
-										{
-											"key": "X-Powered-By",
-											"value": "Express"
-										},
-										{
-											"key": "Content-Type",
-											"value": "application/json; charset=utf-8"
-										},
-										{
-											"key": "Content-Length",
-											"value": "67"
-										},
-										{
-											"key": "ETag",
-											"value": "W/\"43-VVa944bJzICOqHAXbrMtuGViNDY\""
-										},
-										{
-											"key": "Date",
-											"value": "Mon, 14 Feb 2022 13:58:14 GMT"
-										},
-										{
-											"key": "Connection",
-											"value": "keep-alive"
-										},
-										{
-											"key": "Keep-Alive",
-											"value": "timeout=5"
-										}
-									],
-									"cookie": [],
-									"body": "{\n    \"success\": false,\n    \"message\": \"Failed to send the message.\",\n    \"data\": {}\n}"
-								}
-							]
-						},
-						{
-							"name": "Send Message Template",
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json",
-										"type": "text",
-										"disabled": true
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n     \"message\": {\r\n        \"text\": \"Hi it's a template message\",\r\n        \"footer\": \"Hello World\",\r\n        \"templateButtons\": [\r\n            {\r\n                \"index\": 1,\r\n                \"urlButton\": {\r\n                    \"displayText\": \"⭐ Star Baileys on GitHub!\",\r\n                    \"url\": \"https://github.com/adiwajshing/Baileys\"\r\n                }\r\n            },\r\n            {\r\n                \"index\": 2,\r\n                \"callButton\": {\r\n                    \"displayText\": \"Call me!\",\r\n                    \"phoneNumber\": \"+1 (234) 5678-901\"\r\n                }\r\n            }            \r\n        ]\r\n    }\r\n}",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{base_url}}/chats/send?id={{session}}",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"chats",
-										"send"
-									],
-									"query": [
-										{
-											"key": "id",
-											"value": "{{session}}",
-											"description": "Your created session id."
-										}
-									]
-								},
-								"description": "StartFragment\n\nSend templates to someone, it is recommended to use the format provided\n\nModify to your liking\n\nEndFragment"
-							},
-							"response": [
-								{
-									"name": "Response Success",
-									"originalRequest": {
-										"method": "POST",
-										"header": [],
-										"body": {
-											"mode": "raw",
-											"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"text\": \"Hi it's a template message\",\r\n        \"footer\": \"Hello World\",\r\n        \"templateButtons\": [\r\n            {\r\n                \"index\": 1,\r\n                \"urlButton\": {\r\n                    \"displayText\": \"⭐ Star Baileys on GitHub!\",\r\n                    \"url\": \"https://github.com/adiwajshing/Baileys\"\r\n                }\r\n            },\r\n            {\r\n                \"index\": 2,\r\n                \"callButton\": {\r\n                    \"displayText\": \"Call me!\",\r\n                    \"phoneNumber\": \"+1 (234) 5678-901\"\r\n                }\r\n            },\r\n            {\r\n                \"index\": 3,\r\n                \"quickReplyButton\": {\r\n                    \"displayText\": \"This is a reply, just like normal buttons!\",\r\n                    \"id\": \"id-like-buttons-message\"\r\n                }\r\n            }\r\n        ]\r\n    }\r\n}",
-											"options": {
-												"raw": {
-													"language": "json"
-												}
-											}
-										},
-										"url": {
-											"raw": "{{base_url}}/chats/send?id={{session}}",
-											"host": [
-												"{{base_url}}"
-											],
-											"path": [
-												"chats",
-												"send"
-											],
-											"query": [
-												{
-													"key": "id",
-													"value": "{{session}}",
-													"description": "Your created session id."
-												}
-											]
-										}
-									},
-									"status": "OK",
-									"code": 200,
-									"_postman_previewlanguage": "json",
-									"header": [
-										{
-											"key": "X-Powered-By",
-											"value": "Express"
-										},
-										{
-											"key": "Content-Type",
-											"value": "application/json; charset=utf-8"
-										},
-										{
-											"key": "Content-Length",
-											"value": "78"
-										},
-										{
-											"key": "ETag",
-											"value": "W/\"4e-ZvkGSI8StDnkSjZX5UQTQVUBqSQ\""
-										},
-										{
-											"key": "Date",
-											"value": "Fri, 27 May 2022 14:57:19 GMT"
-										},
-										{
-											"key": "Connection",
-											"value": "keep-alive"
-										},
-										{
-											"key": "Keep-Alive",
-											"value": "timeout=5"
-										}
-									],
-									"cookie": [],
-									"body": "{\n    \"success\": true,\n    \"message\": \"The message has been successfully sent.\",\n    \"data\": {}\n}"
-								},
-								{
-									"name": "Response Failed",
-									"originalRequest": {
-										"method": "POST",
-										"header": [
-											{
-												"key": "Content-Type",
-												"name": "Content-Type",
-												"value": "application/json",
-												"type": "text"
-											}
-										],
-										"body": {
-											"mode": "raw",
-											"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"text\": \"Hi it's a template message\",\r\n        \"footer\": \"Hello World\",\r\n        \"templateButtons\": [\r\n            {\r\n                \"index\": 1,\r\n                \"urlButton\": {\r\n                    \"displayText\": \"⭐ Star Baileys on GitHub!\",\r\n                    \"url\": \"https://github.com/adiwajshing/Baileys\"\r\n                }\r\n            },\r\n            {\r\n                \"index\": 2,\r\n                \"callButton\": {\r\n                    \"displayText\": \"Call me!\",\r\n                    \"phoneNumber\": \"+1 (234) 5678-901\"\r\n                }\r\n            },\r\n            {\r\n                \"index\": 3,\r\n                \"quickReplyButton\": {\r\n                    \"displayText\": \"This is a reply, just like normal buttons!\",\r\n                    \"id\": \"id-like-buttons-message\"\r\n                }\r\n            }\r\n        ]\r\n    }\r\n}",
-											"options": {
-												"raw": {
-													"language": "json"
-												}
-											}
-										},
-										"url": {
-											"raw": "{{base_url}}/chats/send?id={{session}}",
-											"host": [
-												"{{base_url}}"
-											],
-											"path": [
-												"chats",
-												"send"
-											],
-											"query": [
-												{
-													"key": "id",
-													"value": "{{session}}",
-													"description": "Your created session id."
-												}
-											]
-										}
-									},
-									"status": "Internal Server Error",
-									"code": 500,
-									"_postman_previewlanguage": "json",
-									"header": [
-										{
-											"key": "X-Powered-By",
-											"value": "Express"
-										},
-										{
-											"key": "Content-Type",
-											"value": "application/json; charset=utf-8"
-										},
-										{
-											"key": "Content-Length",
-											"value": "67"
-										},
-										{
-											"key": "ETag",
-											"value": "W/\"43-VVa944bJzICOqHAXbrMtuGViNDY\""
-										},
-										{
-											"key": "Date",
-											"value": "Mon, 14 Feb 2022 13:58:14 GMT"
-										},
-										{
-											"key": "Connection",
-											"value": "keep-alive"
-										},
-										{
-											"key": "Keep-Alive",
-											"value": "timeout=5"
-										}
-									],
-									"cookie": [],
-									"body": "{\n    \"success\": false,\n    \"message\": \"Failed to send the message.\",\n    \"data\": {}\n}"
-								}
-							]
-						},
-						{
-							"name": "Send Message Template Btn web Whatsapp",
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json",
-										"type": "text",
-										"disabled": true
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n     \"message\": {\r\n        \"text\": \"Hi it's a template message\",\r\n        \"footer\": \"Hello World\",\r\n        \"templateButtons\": [\r\n            {\r\n                \"index\": 1,\r\n                \"quickReplyButton\": {\r\n                    \"displayText\": \"This is a reply, just like normal buttons!\",\r\n                    \"id\": \"id-like-buttons-message\"\r\n                }\r\n            }      \r\n        ]\r\n    }\r\n}",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{base_url}}/chats/send?id={{session}}",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"chats",
-										"send"
-									],
-									"query": [
-										{
-											"key": "id",
-											"value": "{{session}}",
-											"description": "Your created session id."
-										}
-									]
-								},
-								"description": "StartFragment\n\nSend templates to someone, it is recommended to use the format provided\n\nModify to your liking\n\nEndFragment"
-							},
-							"response": [
-								{
-									"name": "Response Success",
-									"originalRequest": {
-										"method": "POST",
-										"header": [],
-										"body": {
-											"mode": "raw",
-											"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"text\": \"Hi it's a template message\",\r\n        \"footer\": \"Hello World\",\r\n        \"templateButtons\": [\r\n            {\r\n                \"index\": 1,\r\n                \"urlButton\": {\r\n                    \"displayText\": \"⭐ Star Baileys on GitHub!\",\r\n                    \"url\": \"https://github.com/adiwajshing/Baileys\"\r\n                }\r\n            },\r\n            {\r\n                \"index\": 2,\r\n                \"callButton\": {\r\n                    \"displayText\": \"Call me!\",\r\n                    \"phoneNumber\": \"+1 (234) 5678-901\"\r\n                }\r\n            },\r\n            {\r\n                \"index\": 3,\r\n                \"quickReplyButton\": {\r\n                    \"displayText\": \"This is a reply, just like normal buttons!\",\r\n                    \"id\": \"id-like-buttons-message\"\r\n                }\r\n            }\r\n        ]\r\n    }\r\n}",
-											"options": {
-												"raw": {
-													"language": "json"
-												}
-											}
-										},
-										"url": {
-											"raw": "{{base_url}}/chats/send?id={{session}}",
-											"host": [
-												"{{base_url}}"
-											],
-											"path": [
-												"chats",
-												"send"
-											],
-											"query": [
-												{
-													"key": "id",
-													"value": "{{session}}",
-													"description": "Your created session id."
-												}
-											]
-										}
-									},
-									"status": "OK",
-									"code": 200,
-									"_postman_previewlanguage": "json",
-									"header": [
-										{
-											"key": "X-Powered-By",
-											"value": "Express"
-										},
-										{
-											"key": "Content-Type",
-											"value": "application/json; charset=utf-8"
-										},
-										{
-											"key": "Content-Length",
-											"value": "78"
-										},
-										{
-											"key": "ETag",
-											"value": "W/\"4e-ZvkGSI8StDnkSjZX5UQTQVUBqSQ\""
-										},
-										{
-											"key": "Date",
-											"value": "Fri, 27 May 2022 14:57:19 GMT"
-										},
-										{
-											"key": "Connection",
-											"value": "keep-alive"
-										},
-										{
-											"key": "Keep-Alive",
-											"value": "timeout=5"
-										}
-									],
-									"cookie": [],
-									"body": "{\n    \"success\": true,\n    \"message\": \"The message has been successfully sent.\",\n    \"data\": {}\n}"
-								},
-								{
-									"name": "Response Failed",
-									"originalRequest": {
-										"method": "POST",
-										"header": [
-											{
-												"key": "Content-Type",
-												"name": "Content-Type",
-												"value": "application/json",
-												"type": "text"
-											}
-										],
-										"body": {
-											"mode": "raw",
-											"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"text\": \"Hi it's a template message\",\r\n        \"footer\": \"Hello World\",\r\n        \"templateButtons\": [\r\n            {\r\n                \"index\": 1,\r\n                \"urlButton\": {\r\n                    \"displayText\": \"⭐ Star Baileys on GitHub!\",\r\n                    \"url\": \"https://github.com/adiwajshing/Baileys\"\r\n                }\r\n            },\r\n            {\r\n                \"index\": 2,\r\n                \"callButton\": {\r\n                    \"displayText\": \"Call me!\",\r\n                    \"phoneNumber\": \"+1 (234) 5678-901\"\r\n                }\r\n            },\r\n            {\r\n                \"index\": 3,\r\n                \"quickReplyButton\": {\r\n                    \"displayText\": \"This is a reply, just like normal buttons!\",\r\n                    \"id\": \"id-like-buttons-message\"\r\n                }\r\n            }\r\n        ]\r\n    }\r\n}",
 											"options": {
 												"raw": {
 													"language": "json"
@@ -3577,8 +2648,8 @@
 										"header": [
 											{
 												"key": "Content-Type",
-												"name": "Content-Type",
 												"value": "application/json",
+												"name": "Content-Type",
 												"type": "text"
 											}
 										],
@@ -4050,8 +3121,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/json",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -4236,8 +3307,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/json",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -4414,8 +3485,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/json",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -4498,7 +3569,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n    \"remoteJid\": \"57300xxxxxxxx@s.whatsapp.net\",\r\n    \"isGroup\": false,\r\n    \"messageId\": \"BAE5EC706B741D18\"\r\n}   ",
+							"raw": "{\r\n    \"remoteJid\": \"57300xxxxx4@s.whatsapp.net\",\r\n    \"isGroup\": false,\r\n    \"messageId\": \"BAE5EC706B741D18\"\r\n}   ",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -4600,8 +3671,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/json",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -4786,8 +3857,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/json",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -4972,8 +4043,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/json",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -5158,8 +4229,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/json",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -5344,8 +4415,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/json",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -5428,7 +4499,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "[\r\n    {\r\n        \"receiver\": \"{{receiver}}\",\r\n        \"message\": {\r\n            \"text\": \"hi! how are you?\"\r\n        }\r\n    },\r\n    {\r\n        \"receiver\": \"{{receiver}}\",\r\n        \"delay\": 60000, \r\n        \"message\": {\r\n            \"text\": \"i'm fine, thank you!\"\r\n        }\r\n    },\r\n]",
+							"raw": "[\r\n    {\r\n        \"receiver\": \"{{receiver}}\",\r\n        \"message\": {\r\n            \"text\": \"hi! how are you?\"\r\n        }\r\n    },\r\n    {\r\n        \"receiver\": \"{{receiver}}\",\r\n        \"delay\": 60000, \r\n        \"message\": {\r\n            \"text\": \"i'm fine, thank you!\"\r\n        }\r\n    }\r\n]",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -5680,7 +4751,8 @@
 						}
 					]
 				}
-			]
+			],
+			"description": "Endpoint with message utilities (send, download, delete)"
 		},
 		{
 			"name": "Groups",
@@ -6194,8 +5266,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/json",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -6387,8 +5459,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/json",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -6581,8 +5653,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/json",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -6776,8 +5848,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/json",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -6971,8 +6043,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/json",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -7147,8 +6219,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/json",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -7330,8 +6402,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/json",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -7506,8 +6578,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/json",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -7692,8 +6764,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/json",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -7866,8 +6938,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/json",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -7933,6 +7005,755 @@
 			"name": "Misc",
 			"item": [
 				{
+					"name": "Create Story",
+					"item": [
+						{
+							"name": "Create Text Story",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text",
+										"disabled": true
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"receiver\": \"573002782284\",\r\n    \"message\": {\r\n        \"text\": \"hello there!\"\r\n    },\r\n    \"options\": {\r\n        \"backgroundColor\": \"#103529\",\r\n        \"font\": 12,\r\n        \"broadcast\": true,\r\n        \"statusJidList\": [\r\n            \"573002782284@s.whatsapp.net\",\r\n            \"573219100149@s.whatsapp.net\"\r\n        ]\r\n    }\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/misc/public-story-status?id={{session}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"misc",
+										"public-story-status"
+									],
+									"query": [
+										{
+											"key": "id",
+											"value": "{{session}}",
+											"description": "Your created session id."
+										}
+									]
+								},
+								"description": "Send message to someone."
+							},
+							"response": [
+								{
+									"name": "Response Success",
+									"originalRequest": {
+										"method": "POST",
+										"header": [],
+										"body": {
+											"mode": "raw",
+											"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"text\": \"hello there!\"\r\n    }\r\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{base_url}}/chats/send?id={{session}}",
+											"host": [
+												"{{base_url}}"
+											],
+											"path": [
+												"chats",
+												"send"
+											],
+											"query": [
+												{
+													"key": "id",
+													"value": "{{session}}",
+													"description": "Your created session id."
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "X-Powered-By",
+											"value": "Express"
+										},
+										{
+											"key": "Content-Type",
+											"value": "application/json; charset=utf-8"
+										},
+										{
+											"key": "Content-Length",
+											"value": "78"
+										},
+										{
+											"key": "ETag",
+											"value": "W/\"4e-ZvkGSI8StDnkSjZX5UQTQVUBqSQ\""
+										},
+										{
+											"key": "Date",
+											"value": "Fri, 27 May 2022 14:57:19 GMT"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=5"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"success\": true,\n    \"message\": \"The message has been successfully sent.\",\n    \"data\": {}\n}"
+								},
+								{
+									"name": "Response Failed",
+									"originalRequest": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json",
+												"name": "Content-Type",
+												"type": "text"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"text\": \"hello there!\"\r\n    }\r\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{base_url}}/chats/send?id={{session}}",
+											"host": [
+												"{{base_url}}"
+											],
+											"path": [
+												"chats",
+												"send"
+											],
+											"query": [
+												{
+													"key": "id",
+													"value": "{{session}}",
+													"description": "Your created session id."
+												}
+											]
+										}
+									},
+									"status": "Internal Server Error",
+									"code": 500,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "X-Powered-By",
+											"value": "Express"
+										},
+										{
+											"key": "Content-Type",
+											"value": "application/json; charset=utf-8"
+										},
+										{
+											"key": "Content-Length",
+											"value": "67"
+										},
+										{
+											"key": "ETag",
+											"value": "W/\"43-VVa944bJzICOqHAXbrMtuGViNDY\""
+										},
+										{
+											"key": "Date",
+											"value": "Mon, 14 Feb 2022 13:58:14 GMT"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=5"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"success\": false,\n    \"message\": \"Failed to send the message.\",\n    \"data\": {}\n}"
+								}
+							]
+						},
+						{
+							"name": "Create Message Image Story",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text",
+										"disabled": true
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"message\": {\r\n        \"image\": {\r\n            \"url\": \"https://raw.githubusercontent.com/pedrazadixon/sample-files/main/sample_image.jpg\"\r\n        },\r\n        \"caption\": \"My logo\"\r\n    },\r\n    \"options\": {\r\n        \"backgroundColor\": \"#103529\",\r\n        \"font\": 12,\r\n        \"broadcast\": true,\r\n        \"statusJidList\": [\"573002782284@s.whatsapp.net\", \"573219100149@s.whatsapp.net\"]\r\n    }\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/misc/public-story-status?id={{session}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"misc",
+										"public-story-status"
+									],
+									"query": [
+										{
+											"key": "id",
+											"value": "{{session}}",
+											"description": "Your created session id."
+										}
+									]
+								},
+								"description": "Send image to someone important specify the url  \nthe caption is not required."
+							},
+							"response": [
+								{
+									"name": "Response Success",
+									"originalRequest": {
+										"method": "POST",
+										"header": [],
+										"body": {
+											"mode": "raw",
+											"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"image\": {\r\n            \"url\": \"https://source.unsplash.com/random/200x200\"\r\n        },\r\n        \"caption\": \"My logo\"\r\n    }\r\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{base_url}}/chats/send?id={{session}}",
+											"host": [
+												"{{base_url}}"
+											],
+											"path": [
+												"chats",
+												"send"
+											],
+											"query": [
+												{
+													"key": "id",
+													"value": "{{session}}",
+													"description": "Your created session id."
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "X-Powered-By",
+											"value": "Express"
+										},
+										{
+											"key": "Content-Type",
+											"value": "application/json; charset=utf-8"
+										},
+										{
+											"key": "Content-Length",
+											"value": "78"
+										},
+										{
+											"key": "ETag",
+											"value": "W/\"4e-ZvkGSI8StDnkSjZX5UQTQVUBqSQ\""
+										},
+										{
+											"key": "Date",
+											"value": "Fri, 27 May 2022 14:57:19 GMT"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=5"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"success\": true,\n    \"message\": \"The message has been successfully sent.\",\n    \"data\": {}\n}"
+								},
+								{
+									"name": "Response Failed",
+									"originalRequest": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json",
+												"name": "Content-Type",
+												"type": "text"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"image\": {\r\n            \"url\": \"https://source.unsplash.com/random/200x200\"\r\n        },\r\n        \"caption\": \"My logo\"\r\n    }\r\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{base_url}}/chats/send?id={{session}}",
+											"host": [
+												"{{base_url}}"
+											],
+											"path": [
+												"chats",
+												"send"
+											],
+											"query": [
+												{
+													"key": "id",
+													"value": "{{session}}",
+													"description": "Your created session id."
+												}
+											]
+										}
+									},
+									"status": "Internal Server Error",
+									"code": 500,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "X-Powered-By",
+											"value": "Express"
+										},
+										{
+											"key": "Content-Type",
+											"value": "application/json; charset=utf-8"
+										},
+										{
+											"key": "Content-Length",
+											"value": "67"
+										},
+										{
+											"key": "ETag",
+											"value": "W/\"43-VVa944bJzICOqHAXbrMtuGViNDY\""
+										},
+										{
+											"key": "Date",
+											"value": "Mon, 14 Feb 2022 13:58:14 GMT"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=5"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"success\": false,\n    \"message\": \"Failed to send the message.\",\n    \"data\": {}\n}"
+								}
+							]
+						},
+						{
+							"name": "Create Message Video Story",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text",
+										"disabled": true
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"isBase64\": false,\r\n    \"message\": {\r\n        \"video\": {\r\n            \"url\": \"https://raw.githubusercontent.com/WhiskeySockets/Baileys/master/Media/ma_gif.mp4\"\r\n        },\r\n        \"caption\": \"My viedo\"\r\n    }\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/misc/public-story-status?id={{session}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"misc",
+										"public-story-status"
+									],
+									"query": [
+										{
+											"key": "id",
+											"value": "{{session}}",
+											"description": "Your created session id."
+										}
+									]
+								},
+								"description": "Send video to someone, important to specify the url"
+							},
+							"response": [
+								{
+									"name": "Response Success",
+									"originalRequest": {
+										"method": "POST",
+										"header": [],
+										"body": {
+											"mode": "raw",
+											"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"video\": {\r\n            \"url\": \"https://raw.githubusercontent.com/adiwajshing/Baileys/master/Media/ma_gif.mp4\"\r\n        },\r\n        \"caption\": \"hello!\"\r\n    }\r\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{base_url}}/chats/send?id={{session}}",
+											"host": [
+												"{{base_url}}"
+											],
+											"path": [
+												"chats",
+												"send"
+											],
+											"query": [
+												{
+													"key": "id",
+													"value": "{{session}}",
+													"description": "Your created session id."
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "X-Powered-By",
+											"value": "Express"
+										},
+										{
+											"key": "Content-Type",
+											"value": "application/json; charset=utf-8"
+										},
+										{
+											"key": "Content-Length",
+											"value": "78"
+										},
+										{
+											"key": "ETag",
+											"value": "W/\"4e-ZvkGSI8StDnkSjZX5UQTQVUBqSQ\""
+										},
+										{
+											"key": "Date",
+											"value": "Fri, 27 May 2022 14:57:19 GMT"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=5"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"success\": true,\n    \"message\": \"The message has been successfully sent.\",\n    \"data\": {}\n}"
+								},
+								{
+									"name": "Response Failed",
+									"originalRequest": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json",
+												"name": "Content-Type",
+												"type": "text"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"video\": {\r\n            \"url\": \"https://raw.githubusercontent.com/adiwajshing/Baileys/master/Media/ma_gif.mp4\"\r\n        },\r\n        \"caption\": \"hello!\"\r\n    }\r\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{base_url}}/chats/send?id={{session}}",
+											"host": [
+												"{{base_url}}"
+											],
+											"path": [
+												"chats",
+												"send"
+											],
+											"query": [
+												{
+													"key": "id",
+													"value": "{{session}}",
+													"description": "Your created session id."
+												}
+											]
+										}
+									},
+									"status": "Internal Server Error",
+									"code": 500,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "X-Powered-By",
+											"value": "Express"
+										},
+										{
+											"key": "Content-Type",
+											"value": "application/json; charset=utf-8"
+										},
+										{
+											"key": "Content-Length",
+											"value": "67"
+										},
+										{
+											"key": "ETag",
+											"value": "W/\"43-VVa944bJzICOqHAXbrMtuGViNDY\""
+										},
+										{
+											"key": "Date",
+											"value": "Mon, 14 Feb 2022 13:58:14 GMT"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=5"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"success\": false,\n    \"message\": \"Failed to send the message.\",\n    \"data\": {}\n}"
+								}
+							]
+						},
+						{
+							"name": "Create Message Audio Story",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text",
+										"disabled": true
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"receiver\": \"573002782284\",\r\n    \"message\": {\r\n        \"audio\": {\r\n            \"url\": \"https://github.com/pedrazadixon/sample-files/raw/main/sample_mp3.mp3\"\r\n        }\r\n    },    \r\n    \"options\": {\r\n        \"backgroundColor\": \"#103529\",\r\n        \"font\": 10,\r\n        \"broadcast\": true,\r\n        \"statusJidList\": [\r\n            \"573002782284@s.whatsapp.net\",\r\n            \"573219100149@s.whatsapp.net\"\r\n        ]\r\n    }\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/misc/public-story-status?id={{session}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"misc",
+										"public-story-status"
+									],
+									"query": [
+										{
+											"key": "id",
+											"value": "{{session}}",
+											"description": "Your created session id."
+										}
+									]
+								},
+								"description": "Send message to someone."
+							},
+							"response": [
+								{
+									"name": "Response Success",
+									"originalRequest": {
+										"method": "POST",
+										"header": [],
+										"body": {
+											"mode": "raw",
+											"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"audio\": {\r\n            \"url\": \"https://raw.githubusercontent.com/adiwajshing/Baileys/master/Media/sonata.mp3\"\r\n        }\r\n    }\r\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{base_url}}/chats/send?id={{session}}",
+											"host": [
+												"{{base_url}}"
+											],
+											"path": [
+												"chats",
+												"send"
+											],
+											"query": [
+												{
+													"key": "id",
+													"value": "{{session}}",
+													"description": "Your created session id."
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "X-Powered-By",
+											"value": "Express"
+										},
+										{
+											"key": "Content-Type",
+											"value": "application/json; charset=utf-8"
+										},
+										{
+											"key": "Content-Length",
+											"value": "78"
+										},
+										{
+											"key": "ETag",
+											"value": "W/\"4e-ZvkGSI8StDnkSjZX5UQTQVUBqSQ\""
+										},
+										{
+											"key": "Date",
+											"value": "Fri, 27 May 2022 14:57:19 GMT"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=5"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"success\": true,\n    \"message\": \"The message has been successfully sent.\",\n    \"data\": {}\n}"
+								},
+								{
+									"name": "Response Failed",
+									"originalRequest": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json",
+												"name": "Content-Type",
+												"type": "text"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"audio\": {\r\n            \"url\": \"https://raw.githubusercontent.com/adiwajshing/Baileys/master/Media/sonata.mp3\"\r\n        }\r\n    }\r\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{base_url}}/chats/send?id={{session}}",
+											"host": [
+												"{{base_url}}"
+											],
+											"path": [
+												"chats",
+												"send"
+											],
+											"query": [
+												{
+													"key": "id",
+													"value": "{{session}}",
+													"description": "Your created session id."
+												}
+											]
+										}
+									},
+									"status": "Internal Server Error",
+									"code": 500,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "X-Powered-By",
+											"value": "Express"
+										},
+										{
+											"key": "Content-Type",
+											"value": "application/json; charset=utf-8"
+										},
+										{
+											"key": "Content-Length",
+											"value": "67"
+										},
+										{
+											"key": "ETag",
+											"value": "W/\"43-VVa944bJzICOqHAXbrMtuGViNDY\""
+										},
+										{
+											"key": "Date",
+											"value": "Mon, 14 Feb 2022 13:58:14 GMT"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=5"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"success\": false,\n    \"message\": \"Failed to send the message.\",\n    \"data\": {}\n}"
+								}
+							]
+						}
+					]
+				},
+				{
 					"name": "Update Profile Status",
 					"request": {
 						"method": "POST",
@@ -7981,8 +7802,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/x-www-form-urlencoded",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -8061,8 +7882,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/x-www-form-urlencoded",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -8183,8 +8004,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/x-www-form-urlencoded",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -8257,8 +8078,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/x-www-form-urlencoded",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -8375,8 +8196,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/x-www-form-urlencoded",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -8455,8 +8276,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/x-www-form-urlencoded",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -8579,8 +8400,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/x-www-form-urlencoded",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -8659,8 +8480,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/x-www-form-urlencoded",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -8781,8 +8602,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/x-www-form-urlencoded",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -8856,8 +8677,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/x-www-form-urlencoded",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -8973,8 +8794,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/x-www-form-urlencoded",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -9047,8 +8868,8 @@
 								"header": [
 									{
 										"key": "Content-Type",
-										"name": "Content-Type",
 										"value": "application/x-www-form-urlencoded",
+										"name": "Content-Type",
 										"type": "text"
 									}
 								],
@@ -9119,6 +8940,26 @@
 			]
 		}
 	],
+	"auth": {
+		"type": "apikey",
+		"apikey": [
+			{
+				"key": "in",
+				"value": "query",
+				"type": "string"
+			},
+			{
+				"key": "value",
+				"value": "{{apikey}}",
+				"type": "string"
+			},
+			{
+				"key": "key",
+				"value": "apikey",
+				"type": "string"
+			}
+		]
+	},
 	"event": [
 		{
 			"listen": "prerequest",
@@ -9163,6 +9004,11 @@
 		{
 			"key": "isGroup",
 			"value": "false",
+			"type": "string"
+		},
+		{
+			"key": "apikey",
+			"value": "A4gx18YGxKAvR01ClcHpcR7TjZUNtwvE",
 			"type": "string"
 		}
 	]

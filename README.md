@@ -86,9 +86,6 @@ At this moment we are working to bring more functionalities
         => Send Message Contact
         => Send Message Location
         => Send Message React
-        => Send Message List (Deprecated)
-        => Send Message Buttons (Deprecated)
-        => Send Message Template (Deprecated)
         => Send Message How To Forward
 ### Groups
     * Get Chat List
@@ -107,10 +104,10 @@ At this moment we are working to bring more functionalities
 ### Misc
     * Update Profile Status
     * Update Profile Name
-    * Update Progile Image (NEW)
-    * Get My Profile {name, phote, status} (NEW)
-    * Get Profile User (NEW)
-    * Block And Unblock User (NEW)
+    * Update Progile Image
+    * Get My Profile {name, phote, status}
+    * Get Profile User
+    * Block And Unblock User
 
 ### Webhook
     * Global webhook
