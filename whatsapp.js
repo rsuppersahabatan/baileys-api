@@ -3,7 +3,6 @@ import { join } from 'path'
 import pino from 'pino'
 import makeWASocket, {
     useMultiFileAuthState,
-    makeInMemoryStore,
     makeCacheableSignalKeyStore,
     DisconnectReason,
     delay,
@@ -11,9 +10,11 @@ import makeWASocket, {
     getAggregateVotesInPollMessage,
     fetchLatestBaileysVersion,
     WAMessageStatus,
-} from '@whiskeysockets/baileys'
+} from 'baileys'
 
-import proto from '@whiskeysockets/baileys'
+import proto from 'baileys'
+
+import makeInMemoryStore from './store/memory-store.js'
 
 import { toDataURL } from 'qrcode'
 import __dirname from './dirname.js'
@@ -84,7 +85,7 @@ const webhook = async (instance, type, data) => {
 const createSession = async (sessionId, res = null, options = { usePairingCode: false, phoneNumber: '' }) => {
     const sessionFile = 'md_' + sessionId
 
-    const logger = pino({ level: 'silent' })
+    const logger = pino({ level: 'debug' })
     const store = makeInMemoryStore({ logger })
 
     const { state, saveCreds } = await useMultiFileAuthState(sessionsDir(sessionFile))
@@ -280,7 +281,7 @@ const createSession = async (sessionId, res = null, options = { usePairingCode: 
     })
 
     wa.ev.on('connection.update', async (update) => {
-        const { connection, lastDisconnect } = update
+        const { connection, lastDisconnect, qr } = update
         const statusCode = lastDisconnect?.error?.output?.statusCode
 
         callWebhook(sessionId, 'CONNECTION_UPDATE', update)
@@ -306,15 +307,13 @@ const createSession = async (sessionId, res = null, options = { usePairingCode: 
             )
         }
 
-        if (update.qr) {
+        if (qr) {
             if (res && !res.headersSent) {
                 callWebhook(sessionId, 'QRCODE_UPDATED', update)
 
                 try {
-                    const qr = await toDataURL(update.qr)
-
-                    response(res, 200, true, 'QR code received, please scan the QR code.', { qr })
-
+                    const qrcode = await toDataURL(qr)
+                    response(res, 200, true, 'QR code received, please scan the QR code.', { qrcode })
                     return
                 } catch {
                     response(res, 500, false, 'Unable to create QR code.')
