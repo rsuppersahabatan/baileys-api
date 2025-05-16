@@ -85,7 +85,7 @@ const webhook = async (instance, type, data) => {
 const createSession = async (sessionId, res = null, options = { usePairingCode: false, phoneNumber: '' }) => {
     const sessionFile = 'md_' + sessionId
 
-    const logger = pino({ level: 'debug' })
+    const logger = pino({ level: 'silent' })
     const store = makeInMemoryStore({ logger })
 
     const { state, saveCreds } = await useMultiFileAuthState(sessionsDir(sessionFile))
