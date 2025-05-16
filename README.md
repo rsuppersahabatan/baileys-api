@@ -1,4 +1,6 @@
+
 # Baileys API
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/andresayac/baileys-api)
 
 An implementation of [@whiskeysockets/Baileys](https://github.com/whiskeysockets/Baileys) as a simple RESTful API service with multiple device support. This project implements both **Multi-Device** client so that you can choose and use one of them easily.
 
