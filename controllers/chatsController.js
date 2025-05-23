@@ -125,7 +125,8 @@ const forward = async (req, res) => {
     try {
         const messages = await session.store.loadMessages(remoteJid, 25, null)
 
-        const key = messages.filter((element) => {
+        
+        const key = [...messages.values()].filter((element) => {
             return element.key.id === id
         })
 

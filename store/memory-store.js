@@ -1,5 +1,7 @@
 import fs from 'fs';
 import path from 'path';
+import proto from 'baileys'
+import { jidNormalizedUser, toNumber } from 'baileys';
 
 function makeInMemoryStore() {
     const chats = new Map();
@@ -8,17 +10,109 @@ function makeInMemoryStore() {
     const groupMetadata = new Map();
 
     const bind = (ev) => {
-        ev.on('messages.upsert', ({ messages: newMessages }) => {
+        ev.on('messages.upsert', ({ messages: newMessages, type }) => {
+            switch (type) {
+                case 'append':
+                case 'notify':
+                    for (const msg of newMessages) {
+                        const jid = jidNormalizedUser(msg.key.remoteJid);
+                        
+                        if (!messages.has(jid)) {
+                            messages.set(jid, new Map());
+                        }
+                        const list = messages.get(jid);
+        
+                        list.set(msg.key.id, msg);
+
+                        if (type === 'notify' && !chats.has(jid)) {
+                            ev.emit('chats.upsert', [
+                                {
+                                    id: jid,
+                                    conversationTimestamp: toNumber(msg.messageTimestamp),
+                                    unreadCount: 1
+                                }
+                            ]);
+                        }
+                    }
+                    break;
+            }
+        });
+
+        ev.on('messaging-history.set', ({
+            chats: newChats,
+            contacts: newContacts,
+            messages: newMessages,
+            isLatest,
+            syncType
+        }) => {
+            if (syncType === proto.HistorySync.HistorySyncType.ON_DEMAND) {
+                return;
+            }
+
+            if (isLatest) {
+                chats.clear();
+
+                for (const jid of messages.keys()) {
+                    messages.delete(jid);
+                }
+            }
+
+            let chatsAdded = 0;
+            for (const chat of newChats) {
+                if (!chats.has(chat.id)) {
+                    chats.set(chat.id, chat);
+                    chatsAdded++;
+                }
+            }
+
+            const oldContacts = contactsUpsert(newContacts);
+            if (isLatest) {
+                for (const jid of oldContacts) {
+                    delete contacts[jid];
+                }
+            }
+
             for (const msg of newMessages) {
                 const jid = msg.key.remoteJid;
-                if (!messages.has(jid)) messages.set(jid, new Map());
-                messages.get(jid).set(msg.key.id, msg);
+                const list = assertMessageList(jid);
+                list.set(msg.key.id, msg);
+            }
+
+        });
+
+
+        ev.on('chats.upsert', newChats => {
+            for (const chat of newChats) {
+                chats.set(chat.id, chat);
+            }
+        });
+
+        ev.on('chats.update', updates => {
+            for (let update of updates) {
+                const existing = chats.get(update.id);
+
+                if (existing) {
+                    if (update.unreadCount > 0) {
+                        update = { ...update }; 
+                        update.unreadCount = (existing.unreadCount || 0) + update.unreadCount;
+                    }
+
+                    Object.assign(existing, update);
+                } 
             }
         });
 
         ev.on('chats.set', ({ chats: newChats }) => {
             for (const chat of newChats) {
                 chats.set(chat.id, chat);
+            }
+        });
+
+        ev.on('chats.delete', deletions => {
+            for (const item of deletions) {
+                if (chats.has(item)) {
+                    chats.delete(item);
+                }
             }
         });
 
