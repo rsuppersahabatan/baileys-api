@@ -45,7 +45,7 @@ function makeInMemoryStore() {
             isLatest,
             syncType
         }) => {
-            if (syncType === proto.HistorySync.HistorySyncType.ON_DEMAND) {
+            if (syncType === 6) {
                 return;
             }
 
@@ -63,6 +63,20 @@ function makeInMemoryStore() {
                     chats.set(chat.id, chat);
                     chatsAdded++;
                 }
+            }
+
+            const contactsUpsert = (newContacts) => {
+                const oldContacts = [];
+                for (const contact of newContacts) {
+                    const jid = jidNormalizedUser(contact.id);
+                    if (!contacts[jid]) {
+                        contacts[jid] = contact;
+                        oldContacts.push(jid);
+                    } else {
+                        Object.assign(contacts[jid], contact);
+                    }
+                }
+                return oldContacts;
             }
 
             const oldContacts = contactsUpsert(newContacts);
