@@ -16,12 +16,12 @@ function makeInMemoryStore() {
                 case 'notify':
                     for (const msg of newMessages) {
                         const jid = jidNormalizedUser(msg.key.remoteJid);
-                        
+
                         if (!messages.has(jid)) {
                             messages.set(jid, new Map());
                         }
                         const list = messages.get(jid);
-        
+
                         list.set(msg.key.id, msg);
 
                         if (type === 'notify' && !chats.has(jid)) {
@@ -85,13 +85,6 @@ function makeInMemoryStore() {
                     delete contacts[jid];
                 }
             }
-
-            for (const msg of newMessages) {
-                const jid = msg.key.remoteJid;
-                const list = assertMessageList(jid);
-                list.set(msg.key.id, msg);
-            }
-
         });
 
 
@@ -107,12 +100,12 @@ function makeInMemoryStore() {
 
                 if (existing) {
                     if (update.unreadCount > 0) {
-                        update = { ...update }; 
+                        update = { ...update };
                         update.unreadCount = (existing.unreadCount || 0) + update.unreadCount;
                     }
 
                     Object.assign(existing, update);
-                } 
+                }
             }
         });
 
