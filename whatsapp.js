@@ -86,7 +86,14 @@ const createSession = async (sessionId, res = null, options = { usePairingCode: 
     const sessionFile = 'md_' + sessionId
 
     const logger = pino({ level: 'silent' })
-    const store = makeInMemoryStore({ logger })
+    const store = makeInMemoryStore({
+        preserveDataDuringSync: true,
+        backupBeforeSync: false,
+        incrementalSave: true,
+        maxMessagesPerChat: 150,
+        autoSaveInterval: 10000,
+        storeFile: sessionsDir(`${sessionId}_store.json`)
+    });
 
     const { state, saveCreds } = await useMultiFileAuthState(sessionsDir(sessionFile))
 
@@ -96,13 +103,6 @@ const createSession = async (sessionId, res = null, options = { usePairingCode: 
 
     // Load store
     store?.readFromFile(sessionsDir(`${sessionId}_store.json`))
-
-    // Save every 10s
-    setInterval(() => {
-        if (existsSync(sessionsDir(sessionFile))) {
-            store?.writeToFile(sessionsDir(`${sessionId}_store.json`))
-        }
-    }, 10000)
 
     // Make both Node and Bun compatible
     const makeWASocket = makeWASocketModule.default ?? makeWASocketModule;
@@ -121,7 +121,7 @@ const createSession = async (sessionId, res = null, options = { usePairingCode: 
         logger,
         msgRetryCounterCache,
         generateHighQualityLinkPreview: true,
-        getMessage,        
+        getMessage,
     })
     store?.bind(wa.ev)
 
@@ -369,7 +369,7 @@ const createSession = async (sessionId, res = null, options = { usePairingCode: 
 
     async function getMessage(key) {
         if (store) {
-            const msg = await store.loadMessage(key.remoteJid, key.id)
+            const msg = await store.loadMessages(key.remoteJid, key.id)
             return msg?.message || undefined
         }
 
@@ -554,7 +554,7 @@ const readMessage = async (session, keys) => {
 
 const getStoreMessage = async (session, messageId, remoteJid) => {
     try {
-        return await session.store.loadMessage(remoteJid, messageId)
+        return await session.store.loadMessages(remoteJid, messageId)
     } catch {
         // eslint-disable-next-line prefer-promise-reject-errors
         return Promise.reject(null)
