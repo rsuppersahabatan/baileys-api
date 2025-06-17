@@ -111,7 +111,7 @@ const shareStory = async (req, res) => {
         return response(res, 400, false, 'The receiver number does not exist.');
     }
     if (receiver === 'all_contacts') {
-        const contacts =  Object.keys(session.store.contacts)
+        const contacts = session.store.getContactList('saved')
         
         if (contacts.length === 0) {
             return response(res, 400, false, 'No contacts found.');

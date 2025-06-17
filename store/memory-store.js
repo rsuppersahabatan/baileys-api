@@ -1,6 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { jidNormalizedUser, toNumber } from 'baileys';
+import { jidNormalizedUser, toNumber, isJidUser } from 'baileys';
 import { EventEmitter } from 'events';
 
 class ConcurrentStore extends EventEmitter {
@@ -442,6 +442,11 @@ class ConcurrentStore extends EventEmitter {
             for (const contact of batch) {
                 try {
                     const jid = jidNormalizedUser(contact.id);
+
+                    if (!isJidUser(jid)) {
+                        continue;
+                    }
+
                     this.contacts.set(jid, {
                         ...contact,
                         lastUpdated: Date.now()
@@ -866,6 +871,27 @@ class ConcurrentStore extends EventEmitter {
         return msgsArray.sort((a, b) =>
             (b.messageTimestamp || 0) - (a.messageTimestamp || 0)
         )[0];
+    }
+
+    getContactList(type = 'all') {
+        if (type === 'saved') {
+            return Array.from(this.contacts.values())
+                .filter(contact => contact?.name && isJidUser(contact.id))
+                .map(contact => contact.id);
+        }
+
+        if (type === 'all') {
+            return Array.from(this.contacts.keys())
+                .filter(jid => isJidUser(jid))
+                .map(jid => jid);
+        }
+
+        if (type === 'conversations') {
+            return Array.from(this.contacts.values())
+                .filter(contact => contact?.id && isJidUser(contact.id))
+                .map(contact => contact.id);
+        }
+        return [];
     }
 
     async loadMessages(jid, messageId = null, options = {}) {
