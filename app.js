@@ -3,6 +3,7 @@ import express from 'express'
 import nodeCleanup from 'node-cleanup'
 import { config } from './config.js'
 import routes from './routes.js'
+import { flush as flushScheduler, restore as restoreScheduler } from './whatsapp/scheduler.js'
 import { cleanup, restoreSessions } from './whatsapp/session.js'
 
 const app = express()
@@ -17,12 +18,17 @@ app.listen(config.port, config.host, () => {
     // traffic, otherwise their stored chats would never be reloaded.
     restoreSessions()
 
+    // Same idea for queued messages: re-arm them so a restart does not silently
+    // drop everything that was scheduled before it.
+    restoreScheduler().catch((error) => console.error(`Could not restore the scheduler: ${error.message}`))
+
     console.log(`Server is listening on http://${config.host ?? 'localhost'}:${config.port}`)
 })
 
 // `nodeCleanup` keeps the process alive while the stores are flushed to disk.
 nodeCleanup((exitCode, signal) => {
     cleanup()
+        .then(() => flushScheduler())
         .catch((error) => console.error(`Cleanup failed: ${error.message}`))
         .finally(() => {
             nodeCleanup.uninstall()

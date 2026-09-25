@@ -15,6 +15,7 @@ import makeInMemoryStore from '../store/memory-store.js'
 import { getStoredMessageContent } from './actions.js'
 import { registerEventHandlers } from './events.js'
 import * as registry from './registry.js'
+import { forgetSession as forgetScheduledJobs } from './scheduler.js'
 import { notify } from './webhook.js'
 
 /** Shared retry counter for failed message decryptions, as required by Baileys. */
@@ -259,6 +260,10 @@ export const deleteSession = async (sessionId) => {
     for (const path of paths) {
         rmSync(path, { force: true, recursive: true })
     }
+
+    // Queued messages belong to the session that queued them, so they go with
+    // it — otherwise they would sit in the list forever, unsendable.
+    await forgetScheduledJobs(sessionId)
 
     registry.forgetSession(sessionId)
 }

@@ -32,6 +32,7 @@ whatsapp/
   events.js             socket event -> webhook wiring
   webhook.js            webhook delivery and event filtering
   actions.js            the only module that calls baileys
+  scheduler.js          queued messages, their timer and their JSON file
   media.js              media download and base64 helpers
   jid.js                phone / group JID normalisation
   registry.js           live sessions and reconnect bookkeeping
@@ -69,6 +70,12 @@ LOG_LEVEL=silent
 
 # Fetch link previews for links found in incoming messages
 GENERATE_HIGH_QUALITY_LINK_PREVIEW=true
+
+# MESSAGE SCHEDULER
+SCHEDULER_LATE_GRACE=300000
+SCHEDULER_MAX_ATTEMPTS=3
+SCHEDULER_RETRY_DELAY=30000
+SCHEDULER_HISTORY_LIMIT=100
 ```
 
 Every value has a default, so the app also starts without a `.env` file.
@@ -82,14 +89,14 @@ Also check out the `examples` directory for the basic usage examples.
 
 ## Scripts
 
-| Command                | What it does                                     |
-| ---------------------- | ------------------------------------------------ |
-| `npm start`            | Run the API                                      |
-| `npm test`             | Run the store, QR-lifecycle and libsignal checks |
-| `npm run lint`         | ESLint (flat config)                             |
-| `npm run lint:fix`     | ESLint with `--fix`                              |
-| `npm run format`       | Prettier write                                   |
-| `npm run format:check` | Prettier check                                   |
+| Command                | What it does                                                   |
+| ---------------------- | -------------------------------------------------------------- |
+| `npm start`            | Run the API                                                    |
+| `npm test`             | Store, QR-lifecycle, libsignal and scheduler checks (98 total) |
+| `npm run lint`         | ESLint (flat config)                                           |
+| `npm run lint:fix`     | ESLint with `--fix`                                            |
+| `npm run format`       | Prettier write                                                 |
+| `npm run format:check` | Prettier check                                                 |
 
 ## API Docs
 
@@ -177,6 +184,115 @@ If such a session loses its connection, the reconnect follows the normal QR
 rules and the session is cleaned up: the pairing code that was already issued is
 stale by then, so there is nothing left to complete.
 
+## Message Scheduler
+
+Queue a message now, have it sent later. Jobs are held in memory, mirrored to
+`sessions/scheduler.json`, and re-armed on boot so a restart does not lose them.
+
+### Endpoints
+
+| Method   | Path                             | Session  | What it does                    |
+| -------- | -------------------------------- | -------- | ------------------------------- |
+| `POST`   | `/scheduler?id=<sessionId>`      | required | Queue a message                 |
+| `GET`    | `/scheduler/list?id=<sessionId>` | required | Every job of that session       |
+| `GET`    | `/scheduler/find/:jobId?id=`     | required | One job                         |
+| `PUT`    | `/scheduler/update/:jobId?id=`   | required | Reschedule, or edit the content |
+| `DELETE` | `/scheduler/delete/:jobId?id=`   | required | Cancel a pending job            |
+
+The job id is always the path parameter `:jobId`, never `:id`, because the
+session middlewares also read `req.params.id` — naming both `id` would make one
+silently shadow the other.
+
+### Queueing a message
+
+```bash
+curl -X POST "http://localhost:8000/scheduler?id=my-session" \
+  -H 'Content-Type: application/json' \
+  -d '{
+        "receiver": "628123456789",
+        "message": { "text": "selamat pagi" },
+        "scheduledAt": "2026-09-26T01:00:00.000Z"
+      }'
+```
+
+`message` is passed to Baileys untouched, so anything `POST /chats/send` accepts
+works here too — text, image with a `url`, document, and so on. `isGroup: true`
+switches `receiver` to group JID handling.
+
+`scheduledAt` accepts an epoch millisecond number, a numeric string, or an ISO
+8601 date string. It must be in the future; a past timestamp is rejected with
+`400` and the code `SCHEDULED_AT_IN_PAST`.
+
+The response is the job itself, with `201`:
+
+```json
+{
+    "success": true,
+    "message": "The message has been scheduled.",
+    "data": {
+        "id": "657d117d-ab1d-476c-8979-791f0dc78ed0",
+        "sessionId": "my-session",
+        "receiver": "628123456789",
+        "jid": "628123456789@s.whatsapp.net",
+        "message": { "text": "selamat pagi" },
+        "scheduledAt": 1790311257000,
+        "runAt": 1790311257000,
+        "status": "pending",
+        "attempts": 0
+    }
+}
+```
+
+`scheduledAt` is what you asked for and `runAt` is when it will actually run.
+They differ once a job has been retried.
+
+### Job statuses
+
+| Status      | Meaning                                                              |
+| ----------- | -------------------------------------------------------------------- |
+| `pending`   | Waiting, or waiting to retry                                         |
+| `sent`      | Handed to WhatsApp; `messageId` and `sentAt` are filled in           |
+| `failed`    | Every attempt failed; `lastError` says why                           |
+| `cancelled` | Cancelled before it ran                                              |
+| `missed`    | Its time passed while the process was down for longer than the grace |
+
+A failed attempt is retried up to `SCHEDULER_MAX_ATTEMPTS` times, waiting
+`SCHEDULER_RETRY_DELAY` between tries. Exhausting the budget marks the job
+`failed`; it is never dropped silently.
+
+`PUT /scheduler/update/:jobId` with a new `scheduledAt` puts a `cancelled`,
+`failed` or `missed` job back to `pending` with a fresh attempt budget, which is
+how you recover one.
+
+### After a restart
+
+On boot every pending job is re-armed. A job whose time passed while the process
+was down is sent only if it is within `SCHEDULER_LATE_GRACE` (5 minutes by
+default); anything later is marked `missed` instead. Sending a message hours
+late is usually worse than admitting it did not go, and either way the job stays
+visible in `/scheduler/list` rather than vanishing.
+
+Finished jobs are kept until `SCHEDULER_HISTORY_LIMIT` of them exist, so the list
+does not grow without bound. Deleting a session deletes its queued jobs with it —
+they belong to a session that no longer exists and could never be sent.
+
+### It keeps working while WhatsApp is down
+
+`POST /scheduler` requires a live connection, because the receiver is checked
+against WhatsApp before the job is accepted. The other four routes only read or
+edit the queue, so they deliberately use a weaker session check and keep working
+while a session is reconnecting. That is the moment you are most likely to want
+to cancel something, and being locked out of your own queue because the socket
+dropped would be the wrong answer.
+
+Sending still needs a live connection. A job that comes due while the session is
+disconnected fails, records `SESSION_NOT_CONNECTED` in `lastError`, and retries.
+
+### Not included
+
+Recurring messages. Every job fires once; schedule the next one yourself, or
+reschedule a finished job with `PUT /scheduler/update/:jobId`.
+
 ## Available Features
 
 At this moment we are working to bring more functionalities
@@ -231,6 +347,14 @@ At this moment we are working to bring more functionalities
     * Group Revoke Invite Code
     * Group Update Picture
     * Group List Without Participants
+
+### Scheduler
+
+    * Schedule Message
+    * List Scheduled Messages
+    * Find Scheduled Message
+    * Update / Reschedule Message
+    * Cancel Scheduled Message
 
 ### Misc
 
@@ -345,6 +469,7 @@ than traded for silent breakage in audio handling.
 - The store also writes a `.backup` copy before a history sync overwrites existing data. It is removed together with the session.
 - `QRCODE_UPDATED` is only sent to the webhook while a session creation request is still waiting for a QR, since the session is dropped as soon as a QR can no longer be delivered.
 - **An unscanned QR expires and takes the session with it.** See [Session Lifecycle](#session-lifecycle) for the full rules and what your UI should do about it.
+- Scheduled messages live in one file, `sessions/scheduler.json`, rather than one per session. See [Message Scheduler](#message-scheduler) for the retry and restart rules.
 - If you have problems when deploying on **CPanel** or any other similar hosting, transpiling your code into **CommonJS** should fix the problems.
 
 ## Notice
