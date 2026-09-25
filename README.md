@@ -138,7 +138,8 @@ If the QR is not scanned before WhatsApp rotates it, the session logs itself out
 and is deleted. Concretely, you will see:
 
 - the log line `Session "<id>" was not scanned before its QR rotated, dropping it.`
-- the session disappear from `GET /sessions/list` and `GET /sessions/status`
+- the session disappearing from `GET /sessions/list`, and `GET /sessions/status/<id>`
+  answering `404` with `"Session not found."`
 - the `sessions/md_<id>` auth directory, `<id>_store.json` and its `.backup`
   copy removed from disk
 - no further `QRCODE_UPDATED` webhook events for that session
@@ -160,8 +161,8 @@ nobody is waiting for its QR, so there is no way to complete the login.
   moment you receive it you have roughly a minute.
 - **Do not poll for a new QR from the same request.** There is only ever one
   code per `POST /sessions/add` call.
-- **Detect the drop with `/sessions/status`.** A `404` means the session is gone
-  and you should start a new login attempt, which is also the natural way to
+- **Detect the drop with `/sessions/status/<id>`.** A `404` means the session is
+  gone and you should start a new login attempt, which is also the natural way to
   implement a "QR expired, show a new one" screen.
 - **Subscribe to `CONNECTION_UPDATE`** if you would rather react to a webhook
   than poll. A successful scan reports `connection: "open"`.
@@ -281,7 +282,10 @@ If it is necessary to send multimedia message in base64 use `APP_WEBHOOK_FILE_IN
 
 ## Known Issue
 
-Currently there's no known issues. If you find any, please kindly open a new one.
+Currently there's no known issues in the application code. If you find any, please kindly open a new one.
+
+The advisories below are a separate matter: they come from upstream packages and
+are tracked here so they are not rediscovered on every `npm audit`.
 
 ### Dependency advisories
 
