@@ -90,18 +90,39 @@ Also check out the `examples` directory for the basic usage examples.
 
 ## Scripts
 
-| Command                | What it does                                                               |
-| ---------------------- | -------------------------------------------------------------------------- |
-| `npm start`            | Run the API                                                                |
-| `npm test`             | Store, QR-lifecycle, libsignal, scheduler, contacts and typing (230 total) |
-| `npm run lint`         | ESLint (flat config)                                                       |
-| `npm run lint:fix`     | ESLint with `--fix`                                                        |
-| `npm run format`       | Prettier write                                                             |
-| `npm run format:check` | Prettier check                                                             |
+| Command                | What it does                                                                                  |
+| ---------------------- | --------------------------------------------------------------------------------------------- |
+| `npm start`            | Run the API                                                                                   |
+| `npm test`             | Store, QR-lifecycle, libsignal, scheduler, contacts, typing and collection checks (244 total) |
+| `npm run lint`         | ESLint (flat config)                                                                          |
+| `npm run lint:fix`     | ESLint with `--fix`                                                                           |
+| `npm run format`       | Prettier write                                                                                |
+| `npm run format:check` | Prettier check                                                                                |
 
 ## API Docs
 
 The API documentation is available online [here](https://documenter.getpostman.com/view/9471522/2s8YehTwHJ). You can also import the **Postman Collection File** `(postman_collection.json)` into your Postman App alternatively.
+
+The collection covers every route the app serves. Before sending anything, set
+these collection variables:
+
+| Variable   | What it is                                                                                     |
+| ---------- | ---------------------------------------------------------------------------------------------- |
+| `base_url` | Where the API runs, e.g. `http://localhost:8000`                                               |
+| `session`  | The session id you created with `POST /sessions/add`                                           |
+| `receiver` | A phone number to send to                                                                      |
+| `jid`      | A group id, without the `@g.us` suffix                                                         |
+| `isGroup`  | `false` — **unquoted**, see the note in the collection description                             |
+| `apikey`   | Sent as a query parameter; only needed when the server sets `AUTHENTICATION_GLOBAL_AUTH_TOKEN` |
+
+`npm test` keeps it honest. `tests/postman.test.mjs` reads the route files and the
+controllers and fails if the collection drifts: an endpoint added but not
+documented, an endpoint documented that no route serves, a path or query
+parameter that does not match, a body that is not valid JSON, or a `{{variable}}`
+that is not defined. That check exists because the collection had already drifted
+in ways that failed silently — a query parameter documented as `cursor_id` while
+the controller read `cursorId` meant paging quietly returned the newest page every
+time, and two documented endpoints had never been implemented.
 
 The server will respond in following JSON format:
 

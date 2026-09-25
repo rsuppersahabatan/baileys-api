@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "92b6ff15-d51c-472c-bbc0-81f7db72c0b8",
 		"name": "Baileys API v0.4",
-		"description": "API Documentation fo [https://github.com/andresayac/baileys-api]()",
+		"description": "REST API for WhatsApp, built on Baileys.\n\n- **58 requests** across 6 folders.\n- Set `base_url`, `session` and `apikey` in the collection variables before sending anything.\n- Every response uses the same envelope: `{ success, message, data }`.\n- Bodies are JSON. Form-encoded bodies are accepted too, but JSON is what the\n  examples use.\n\n### Authentication\n\nThe `apikey` is only checked when `AUTHENTICATION_GLOBAL_AUTH_TOKEN` is set on\nthe server; with it unset, everything is open. It is read from either the\n`apikey` header or the `apikey` query parameter, and this collection sends it as\na query parameter using the `apikey` variable.\n\n### Errors every route can answer with\n\n| Code | Message | When |\n| --- | --- | --- |\n| `401` | `Authentication failed.` | The `apikey` does not match, and a token is configured. |\n| `400` | `Please fill out all required input.` | A field the route requires was missing or empty. |\n| `404` | `Session not found.` | The `id` does not match a session. |\n| `400` | `There is no connection with whatsapp at the moment, please try again` | The session exists but its socket is not open. Not raised on `/sessions/*`, which has to work while a session is connecting. |\n\n### A note on `isGroup`\n\nSeveral bodies contain `\"isGroup\": {{isGroup}}` — **deliberately unquoted**, so\nPostman substitutes the boolean `false`. If you edit one of these, keep it a real\nboolean. Sending the string `\"false\"` is truthy on the server, which would treat a\nprivate chat as a group and produce a `@g.us` JID.\n\nSource: https://github.com/andresayac/baileys-api",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
 		"_exporter_id": "9471522"
 	},
@@ -28,11 +28,12 @@
 							"variable": [
 								{
 									"key": "id",
-									"value": "{{session}}"
+									"value": "{{session}}",
+									"description": "Your created session id."
 								}
 							]
 						},
-						"description": "Find a session."
+						"description": "Confirms that a session id is known to the server.\n\n`sessionValidator` answers `404` for an unknown id, so a `200` here only means\nthe id exists. It says nothing about whether the session is logged in or\nconnected, and the response carries no payload (`data` is `{}`)."
 					},
 					"response": [
 						{
@@ -180,7 +181,7 @@
 								}
 							]
 						},
-						"description": "Get session status. The status value is either `authenticated, connecting, connected, disconnecting` or `disconnected`."
+						"description": "Connection state of a session.\n\n| `status` | Meaning |\n| --- | --- |\n| `authenticated` | Connected **and** logged in — the only state that can send |\n| `connected` | Socket is open, but the login has not finished (a QR may still be waiting) |\n| `connecting` | Socket is opening |\n| `disconnecting` | Socket is closing |\n| `disconnected` | Socket is closed |\n| `unknown` | A socket state the API does not recognise |\n\n`connected` is not a synonym for ready: a session sitting on an unscanned QR\nreports `connected` and cannot send anything."
 					},
 					"response": [
 						{
@@ -264,7 +265,7 @@
 								"list"
 							]
 						},
-						"description": "Get the name of the created session."
+						"description": "Every session id the server currently holds, as a plain array of strings.\n\nThe entries are ids, not objects, and there is no connection state here — call\n`GET /sessions/status/:id` for that.\n\nA session is listed as soon as `POST /sessions/add` registers it, which is\nbefore it has been scanned, so an id can appear while it is still waiting for a\nQR."
 					},
 					"response": [
 						{
@@ -331,28 +332,13 @@
 						"method": "POST",
 						"header": [],
 						"body": {
-							"mode": "urlencoded",
-							"urlencoded": [
-								{
-									"key": "id",
-									"value": "{{session}}",
-									"description": "Session id you want to use.",
-									"type": "default"
-								},
-								{
-									"key": "typeAuth",
-									"value": "code",
-									"description": "The authentication type (code or QR). By default, qr is selected.",
-									"type": "text"
-								},
-								{
-									"key": "phoneNumber",
-									"value": "{{jid}}",
-									"description": "Telephone number with international code used for authentication",
-									"type": "text",
-									"disabled": true
+							"mode": "raw",
+							"raw": "{\n    \"id\": \"{{session}}\",\n    \"typeAuth\": \"qr\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
 								}
-							]
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/sessions/add",
@@ -364,7 +350,7 @@
 								"add"
 							]
 						},
-						"description": "Create a new session."
+						"description": "Create a session and start logging in.\n\nThe session id comes from the **body**, not the query.\n\n`typeAuth` selects how you authenticate:\n\n| Value | What happens |\n| --- | --- |\n| `qr` | The response is held open until a QR code is ready, then returns it as a base64 data URL. This is the default. |\n| `code` | Sends a pairing code to `phoneNumber` instead, and returns it as `code`. |\n\nTo use a pairing code, send `{ \"id\": \"my-session\", \"typeAuth\": \"code\", \"phoneNumber\": \"628123456789\" }`.\n`phoneNumber` is required when `typeAuth` is `code` and ignored otherwise.\n\nThe response to `qr` is held open until the code is ready, so allow for the\nround trip. **The QR is delivered exactly once** — if it is not scanned before\nWhatsApp rotates it (about a minute), the session logs itself out and is deleted,\nand you have to call this endpoint again. See the README's *Session Lifecycle*\nsection.\n\nA session id that is already in use answers `409`."
 					},
 					"response": [
 						{
@@ -373,21 +359,13 @@
 								"method": "POST",
 								"header": [],
 								"body": {
-									"mode": "urlencoded",
-									"urlencoded": [
-										{
-											"key": "id",
-											"value": "{{session}}",
-											"description": "Session id you want to use.",
-											"type": "default"
-										},
-										{
-											"key": "isLegacy",
-											"value": "false",
-											"description": "Client type. Value: 'true' (Normal WhatsApp Web / Legacy) or 'false' (Beta Multi-Device).\n",
-											"type": "text"
+									"mode": "raw",
+									"raw": "{\n    \"id\": \"{{session}}\",\n    \"typeAuth\": \"qr\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
 										}
-									]
+									}
 								},
 								"url": {
 									"raw": "{{base_url}}/sessions/add",
@@ -442,21 +420,13 @@
 								"method": "POST",
 								"header": [],
 								"body": {
-									"mode": "urlencoded",
-									"urlencoded": [
-										{
-											"key": "id",
-											"value": "{{session}}",
-											"description": "Session id you want to use.",
-											"type": "default"
-										},
-										{
-											"key": "isLegacy",
-											"value": "false",
-											"description": "Client type. Value: 'true' (Normal WhatsApp Web / Legacy) or 'false' (Beta Multi-Device).\n",
-											"type": "text"
+									"mode": "raw",
+									"raw": "{\n    \"id\": \"{{session}}\",\n    \"typeAuth\": \"qr\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
 										}
-									]
+									}
 								},
 								"url": {
 									"raw": "{{base_url}}/sessions/add",
@@ -511,21 +481,13 @@
 								"method": "POST",
 								"header": [],
 								"body": {
-									"mode": "urlencoded",
-									"urlencoded": [
-										{
-											"key": "id",
-											"value": "{{session}}",
-											"description": "Session id you want to use.",
-											"type": "default"
-										},
-										{
-											"key": "isLegacy",
-											"value": "false",
-											"description": "Client type. Value: 'true' (Normal WhatsApp Web / Legacy) or 'false' (Beta Multi-Device).\n",
-											"type": "text"
+									"mode": "raw",
+									"raw": "{\n    \"id\": \"{{session}}\",\n    \"typeAuth\": \"qr\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
 										}
-									]
+									}
 								},
 								"url": {
 									"raw": "{{base_url}}/sessions/add",
@@ -594,11 +556,12 @@
 							"variable": [
 								{
 									"key": "id",
-									"value": "{{session}}"
+									"value": "{{session}}",
+									"description": "Your created session id."
 								}
 							]
 						},
-						"description": "Delete a session."
+						"description": "Log the session out and delete it, credentials and message store included.\n\nThe session must exist (`404` otherwise). Queued scheduler jobs are deleted with\nit — they belong to a session that no longer exists and could never be sent."
 					},
 					"response": [
 						{
@@ -1244,7 +1207,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"isBase64\": false,\r\n    \"message\": {\r\n        \"video\": {\r\n            \"url\": \"https://raw.githubusercontent.com/WhiskeySockets/Baileys/master/Media/ma_gif.mp4\"\r\n        },\r\n        \"caption\": \"My viedo\"\r\n    }\r\n}",
+									"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"video\": {\r\n            \"url\": \"https://raw.githubusercontent.com/WhiskeySockets/Baileys/master/Media/ma_gif.mp4\"\r\n        },\r\n        \"caption\": \"My viedo\"\r\n    }\r\n}",
 									"options": {
 										"raw": {
 											"language": "json"
@@ -1278,7 +1241,7 @@
 										"header": [],
 										"body": {
 											"mode": "raw",
-											"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"video\": {\r\n            \"url\": \"https://raw.githubusercontent.com/adiwajshing/Baileys/master/Media/ma_gif.mp4\"\r\n        },\r\n        \"caption\": \"hello!\"\r\n    }\r\n}",
+											"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"video\": {\r\n            \"url\": \"https://raw.githubusercontent.com/WhiskeySockets/Baileys/master/Media/ma_gif.mp4\"\r\n        },\r\n        \"caption\": \"My viedo\"\r\n    }\r\n}",
 											"options": {
 												"raw": {
 													"language": "json"
@@ -1353,7 +1316,7 @@
 										],
 										"body": {
 											"mode": "raw",
-											"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"video\": {\r\n            \"url\": \"https://raw.githubusercontent.com/adiwajshing/Baileys/master/Media/ma_gif.mp4\"\r\n        },\r\n        \"caption\": \"hello!\"\r\n    }\r\n}",
+											"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"video\": {\r\n            \"url\": \"https://raw.githubusercontent.com/WhiskeySockets/Baileys/master/Media/ma_gif.mp4\"\r\n        },\r\n        \"caption\": \"My viedo\"\r\n    }\r\n}",
 											"options": {
 												"raw": {
 													"language": "json"
@@ -2718,7 +2681,8 @@
 								}
 							]
 						}
-					]
+					],
+					"description": "One example per message type. All of them post to `POST /chats/send`; only the `message` object changes.\n\nAny of them also accepts `typing` to show a typing indicator first — see **Send Message**."
 				},
 				{
 					"name": "Get Chat List",
@@ -2741,11 +2705,11 @@
 								}
 							]
 						},
-						"description": "Get personal chat list."
+						"description": "Private chats known to the session.\n\nRead from the in-memory store rather than from WhatsApp, so it returns\nimmediately and only contains what this session has seen since it was created.\nEach entry is a Baileys chat object — `id`, `name`, `unreadCount`,\n`conversationTimestamp` and so on.\n\nGroup chats live in `GET /groups`."
 					},
 					"response": [
 						{
-							"name": "Response Success",
+							"name": "Response Success (abbreviated)",
 							"originalRequest": {
 								"method": "GET",
 								"header": [],
@@ -2800,7 +2764,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n    \"success\": true,\n    \"message\": \"\",\n    \"data\": [\n        {\n            \"id\": \"628812xxxxx@s.whatsapp.net\",\n            \"unreadCount\": 1,\n            \"readOnly\": false,\n            \"ephemeralExpiration\": 0,\n            \"conversationTimestamp\": \"1644843624\",\n            \"notSpam\": true,\n            \"disappearingMode\": {\n                \"initiator\": \"CHANGED_IN_CHAT\"\n            },\n            \"unreadMentionCount\": 0,\n            \"contactPrimaryIdentityKey\": \"REDACTED\"\n        },\n        ...\n    ]\n}"
+							"body": "{\n    \"success\": true,\n    \"message\": \"\",\n    \"data\": [\n        {\n            \"id\": \"628812xxxxx@s.whatsapp.net\",\n            \"unreadCount\": 1,\n            \"readOnly\": false,\n            \"ephemeralExpiration\": 0,\n            \"conversationTimestamp\": \"1644843624\",\n            \"notSpam\": true,\n            \"disappearingMode\": {\n                \"initiator\": \"CHANGED_IN_CHAT\"\n            },\n            \"unreadMentionCount\": 0,\n            \"contactPrimaryIdentityKey\": \"REDACTED\"\n        }\n    ]\n}"
 						}
 					]
 				},
@@ -2810,13 +2774,13 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/chats/{{jid}}?id={{session}}&limit=5&isGroup={{isGroup}}",
+							"raw": "{{base_url}}/chats/:jid?id={{session}}&limit=5&isGroup={{isGroup}}",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
 								"chats",
-								"{{jid}}"
+								":jid"
 							],
 							"query": [
 								{
@@ -2830,13 +2794,13 @@
 									"description": "Limit data length. Default: 25 (Optional)."
 								},
 								{
-									"key": "cursor_id",
+									"key": "cursorId",
 									"value": "REDACTED",
 									"description": "id field from message key used as cursor to fetch previous messages (Optional).",
 									"disabled": true
 								},
 								{
-									"key": "cursor_fromMe",
+									"key": "cursorFromMe",
 									"value": "true",
 									"description": "fromMe field from message key used as cursor to fetch previous messages. Value: 'true' or 'false', default: 'false' (Optional).",
 									"disabled": true
@@ -2846,18 +2810,25 @@
 									"value": "{{isGroup}}",
 									"description": "Default false"
 								}
+							],
+							"variable": [
+								{
+									"key": "jid",
+									"value": "{{receiver}}@s.whatsapp.net",
+									"description": "The group jid, or the chat jid."
+								}
 							]
 						},
-						"description": "Load conversation with a person in paginated manner."
+						"description": "Message history of a chat, newest first.\n\nPaging is **backwards from a known message id**:\n\n| Query | Meaning |\n| --- | --- |\n| `limit` | How many messages to return. Default `25`. |\n| `cursorId` | A message id from this chat; the results are the messages older than it. |\n| `cursorFromMe` | `true` / `false` — the `fromMe` flag of that same cursor message. Needed whenever `cursorId` is set, because an id on its own is ambiguous: a message you sent and one you received can share an id. |\n| `isGroup` | `true` when `jid` is a group. Defaults to `false`. |\n\nTo fetch the next page, take the last message of the current one and send its\n`key.id` as `cursorId` and its `key.fromMe` as `cursorFromMe`.\n\nThe names are **camelCase**. An unrecognised query parameter is ignored rather\nthan rejected, so `cursor_id` would not error — it would silently hand you the\nnewest page again."
 					},
 					"response": [
 						{
-							"name": "Response Success",
+							"name": "Response Success (abbreviated)",
 							"originalRequest": {
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "{{base_url}}/chats/:jid?id={{session}}&limit=25&cursor_id=REDACTED",
+									"raw": "{{base_url}}/chats/:jid?id={{session}}&limit=25&cursorId=REDACTED",
 									"host": [
 										"{{base_url}}"
 									],
@@ -2877,7 +2848,7 @@
 											"description": "Limit data length. Default: 25 (Optional)."
 										},
 										{
-											"key": "cursor_id",
+											"key": "cursorId",
 											"value": "REDACTED",
 											"description": "id from any message key used as cursor to fetch previous messages (Optional)."
 										}
@@ -2925,7 +2896,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n    \"success\": true,\n    \"message\": \"\",\n    \"data\": [\n        {\n            \"key\": {\n                \"remoteJid\": \"628950xxxxx@s.whatsapp.net\",\n                \"fromMe\": true,\n                \"id\": \"REDACTED\"\n            },\n            \"message\": {\n                \"conversation\": \"Hello there!\"\n            },\n            \"messageTimestamp\": \"1631510231\",\n            \"status\": \"READ\",\n            \"messageC2STimestamp\": \"1631510232\",\n            \"userReceipt\": [\n                {\n                    \"userJid\": \"628950xxxxx@s.whatsapp.net\",\n                    \"receiptTimestamp\": \"1631510234000\",\n                    \"readTimestamp\": \"1631510939000\",\n                    \"playedTimestamp\": \"0\"\n                }\n            ]\n        },\n        ...\n    ]\n}"
+							"body": "{\n    \"success\": true,\n    \"message\": \"\",\n    \"data\": [\n        {\n            \"key\": {\n                \"remoteJid\": \"628950xxxxx@s.whatsapp.net\",\n                \"fromMe\": true,\n                \"id\": \"REDACTED\"\n            },\n            \"message\": {\n                \"conversation\": \"Hello there!\"\n            },\n            \"messageTimestamp\": \"1631510231\",\n            \"status\": \"READ\",\n            \"messageC2STimestamp\": \"1631510232\",\n            \"userReceipt\": [\n                {\n                    \"userJid\": \"628950xxxxx@s.whatsapp.net\",\n                    \"receiptTimestamp\": \"1631510234000\",\n                    \"readTimestamp\": \"1631510939000\",\n                    \"playedTimestamp\": \"0\"\n                }\n            ]\n        }\n    ]\n}"
 						},
 						{
 							"name": "Response Failed",
@@ -2933,7 +2904,7 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "{{base_url}}/chats/:jid?id={{session}}&limit=25&cursor_id=REDACTED",
+									"raw": "{{base_url}}/chats/:jid?id={{session}}&limit=25&cursorId=REDACTED",
 									"host": [
 										"{{base_url}}"
 									],
@@ -2953,7 +2924,7 @@
 											"description": "Limit data length. Default: 25 (Optional)."
 										},
 										{
-											"key": "cursor_id",
+											"key": "cursorId",
 											"value": "REDACTED",
 											"description": "id from any message key used as cursor to fetch previous messages (Optional)."
 										}
@@ -3043,7 +3014,7 @@
 								}
 							]
 						},
-						"description": "Forward messages to groups or people it is mandatory to complete the information as it is in the example all fields are required"
+						"description": "Forward a stored message into another chat.\n\n`forward.id` and `forward.remoteJid` identify a message **in this session's own\nstore** — the API forwards the copy it holds, not one re-fetched from WhatsApp.\nA message that is not in the store answers `404`, so read the conversation first\nif you are not sure.\n\n`receiver` is the destination and `isGroup` selects group handling for it."
 					},
 					"response": [
 						{
@@ -3229,7 +3200,7 @@
 								}
 							]
 						},
-						"description": "Download media using `messageId` and `remoteJid`\n\nit is important to specify if it is a group in `isGroup`"
+						"description": "Download the media attached to a stored message.\n\n`remoteJid` and `messageId` identify a message in this session's store, so the\nmessage has to have been received by this session first.\n\n`404` when the message is not in the store, `500` when it carries no media or\nthe download fails."
 					},
 					"response": [
 						{
@@ -3298,7 +3269,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n    \"success\": true,\n    \"message\": \"The message has been successfully forwarded.\",\n    \"data\": {}\n}"
+							"body": "{\n    \"success\": true,\n    \"message\": \"Message downloaded successfully\",\n    \"data\": {}\n}"
 						},
 						{
 							"name": "Response Failed",
@@ -3373,7 +3344,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n    \"success\": false,\n    \"message\": \"Failed to forward the message.\",\n    \"data\": {}\n}"
+							"body": "{\n    \"success\": false,\n    \"message\": \"Error downloading multimedia message: it may not exist or may not contain multimedia content.\",\n    \"data\": {}\n}"
 						}
 					]
 				},
@@ -3384,7 +3355,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"text\": \"hello there!\"\r\n    }\r\n}",
+							"raw": "{\n    \"receiver\": \"{{receiver}}\",\n    \"isGroup\": {{isGroup}},\n    \"message\": {\n        \"text\": \"hello there!\"\n    },\n    \"typing\": false\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -3407,7 +3378,7 @@
 								}
 							]
 						},
-						"description": "Send message to someone."
+						"description": "Send a message to a phone number or a group.\n\n`message` is passed to Baileys untouched, so every message type is supported here\n— text, image, video, audio, document, sticker, contact, location, poll and react.\nThe dedicated examples under **Send Message Types** show the shape of each.\n\n`isGroup` selects group JID handling for `receiver`.\n\n### Typing indicator\n\nAdd `typing` to show \"typing…\" before the message is delivered.\n\n| Value | What happens |\n| --- | --- |\n| `true` | Derive a duration from the length of the message text |\n| `1500` | Show it for 1500 ms |\n| `{ \"duration\": 1500 }` | Same thing |\n| `false`, `0`, `\"\"` | No indicator — the default when omitted |\n\nThe indicator is always cleared before the message is sent, and a socket that\nrefuses to show it will not stop the message going out."
 					},
 					"response": [
 						{
@@ -3417,7 +3388,7 @@
 								"header": [],
 								"body": {
 									"mode": "raw",
-									"raw": "{\r\n    \"receiver\": \"628231xxxxx\", \r\n    \"message\": {\r\n        \"text\": \"hello there!\"\r\n    }\r\n}",
+									"raw": "{\n    \"receiver\": \"{{receiver}}\",\n    \"isGroup\": {{isGroup}},\n    \"message\": {\n        \"text\": \"hello there!\"\n    },\n    \"typing\": false\n}",
 									"options": {
 										"raw": {
 											"language": "json"
@@ -3552,192 +3523,6 @@
 							],
 							"cookie": [],
 							"body": "{\n    \"success\": false,\n    \"message\": \"Failed to send the message.\",\n    \"data\": {}\n}"
-						}
-					]
-				},
-				{
-					"name": "Get Message Poll",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\r\n    \"remoteJid\": \"57300xxxxx4@s.whatsapp.net\",\r\n    \"isGroup\": false,\r\n    \"messageId\": \"BAE5EC706B741D18\"\r\n}   ",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{base_url}}/chats/get-poll?id={{session}}",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"chats",
-								"get-poll"
-							],
-							"query": [
-								{
-									"key": "id",
-									"value": "{{session}}",
-									"description": "Your created session id."
-								}
-							]
-						},
-						"description": "Download media using `messageId` and `remoteJid`\n\nit is important to specify if it is a group in `isGroup`"
-					},
-					"response": [
-						{
-							"name": "Response Success",
-							"originalRequest": {
-								"method": "POST",
-								"header": [],
-								"body": {
-									"mode": "raw",
-									"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"forward\": {\r\n        \"id\": \"3EB07BB4C18F7XXXX\",\r\n        \"remoteJid\": \"12036302721XXXX@g.us\"\r\n    }\r\n}",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{base_url}}/chats/forward?id={{session}}",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"chats",
-										"forward"
-									],
-									"query": [
-										{
-											"key": "id",
-											"value": "{{session}}",
-											"description": "Your created session id."
-										}
-									]
-								}
-							},
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "X-Powered-By",
-									"value": "Express"
-								},
-								{
-									"key": "Content-Type",
-									"value": "application/json; charset=utf-8"
-								},
-								{
-									"key": "Content-Length",
-									"value": "78"
-								},
-								{
-									"key": "ETag",
-									"value": "W/\"4e-ZvkGSI8StDnkSjZX5UQTQVUBqSQ\""
-								},
-								{
-									"key": "Date",
-									"value": "Fri, 27 May 2022 14:57:19 GMT"
-								},
-								{
-									"key": "Connection",
-									"value": "keep-alive"
-								},
-								{
-									"key": "Keep-Alive",
-									"value": "timeout=5"
-								}
-							],
-							"cookie": [],
-							"body": "{\n    \"success\": true,\n    \"message\": \"The message has been successfully forwarded.\",\n    \"data\": {}\n}"
-						},
-						{
-							"name": "Response Failed",
-							"originalRequest": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json",
-										"name": "Content-Type",
-										"type": "text"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"forward\": {\r\n        \"id\": \"3EB07BB4C18F7XXXX\",\r\n        \"remoteJid\": \"12036302721XXXX@g.us\"\r\n    }\r\n}",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{base_url}}/chats/forward?id={{session}}",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"chats",
-										"forward"
-									],
-									"query": [
-										{
-											"key": "id",
-											"value": "{{session}}",
-											"description": "Your created session id."
-										}
-									]
-								}
-							},
-							"status": "Internal Server Error",
-							"code": 500,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "X-Powered-By",
-									"value": "Express"
-								},
-								{
-									"key": "Content-Type",
-									"value": "application/json; charset=utf-8"
-								},
-								{
-									"key": "Content-Length",
-									"value": "67"
-								},
-								{
-									"key": "ETag",
-									"value": "W/\"43-VVa944bJzICOqHAXbrMtuGViNDY\""
-								},
-								{
-									"key": "Date",
-									"value": "Mon, 14 Feb 2022 13:58:14 GMT"
-								},
-								{
-									"key": "Connection",
-									"value": "keep-alive"
-								},
-								{
-									"key": "Keep-Alive",
-									"value": "timeout=5"
-								}
-							],
-							"cookie": [],
-							"body": "{\n    \"success\": false,\n    \"message\": \"Failed to forward the message.\",\n    \"data\": {}\n}"
 						}
 					]
 				},
@@ -3779,7 +3564,7 @@
 								}
 							]
 						},
-						"description": "Send a message as if it was sent by someone"
+						"description": "Revoke a message for everyone in the chat.\n\n`message` is the message **key** — `remoteJid`, `fromMe`, `id` — not the message\ncontent. It revokes your own messages; revoking somebody else's fails.\n\n`500` when WhatsApp refuses, which is what happens if the message is too old or\nwas not sent by this session."
 					},
 					"response": [
 						{
@@ -3848,7 +3633,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n    \"success\": true,\n    \"message\": \"The message has been successfully sent.\",\n    \"data\": {}\n}"
+							"body": "{\n    \"success\": true,\n    \"message\": \"Message has been successfully deleted.\",\n    \"data\": {}\n}"
 						},
 						{
 							"name": "Response Failed",
@@ -3923,193 +3708,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n    \"success\": false,\n    \"message\": \"Failed to send the message.\",\n    \"data\": {}\n}"
-						}
-					]
-				},
-				{
-					"name": "Archive Message",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"remoteJid\": \"628231xxxxx@s.whatsapp.net\",\r\n        \"fromMe\": true,\r\n        \"id\": \"9A8xxxxxAC0FE60B59F6xxxxxxxxxxx\"\r\n    }\r\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{base_url}}/chats/archive?id={{session}}",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"chats",
-								"archive"
-							],
-							"query": [
-								{
-									"key": "id",
-									"value": "{{session}}",
-									"description": "Your created session id."
-								}
-							]
-						},
-						"description": "Send a message as if it was sent by someone"
-					},
-					"response": [
-						{
-							"name": "Response Success",
-							"originalRequest": {
-								"method": "POST",
-								"header": [],
-								"body": {
-									"mode": "raw",
-									"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"forward\": {\r\n            \"key\": {\r\n                \"id\": null\r\n            },\r\n            \"message\": {\r\n                \"conversation\": \"hi this message is forwarded\"\r\n            }\r\n        }\r\n    }\r\n}",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{base_url}}/chats/send?id={{session}}",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"chats",
-										"send"
-									],
-									"query": [
-										{
-											"key": "id",
-											"value": "{{session}}",
-											"description": "Your created session id."
-										}
-									]
-								}
-							},
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "X-Powered-By",
-									"value": "Express"
-								},
-								{
-									"key": "Content-Type",
-									"value": "application/json; charset=utf-8"
-								},
-								{
-									"key": "Content-Length",
-									"value": "78"
-								},
-								{
-									"key": "ETag",
-									"value": "W/\"4e-ZvkGSI8StDnkSjZX5UQTQVUBqSQ\""
-								},
-								{
-									"key": "Date",
-									"value": "Fri, 27 May 2022 14:57:19 GMT"
-								},
-								{
-									"key": "Connection",
-									"value": "keep-alive"
-								},
-								{
-									"key": "Keep-Alive",
-									"value": "timeout=5"
-								}
-							],
-							"cookie": [],
-							"body": "{\n    \"success\": true,\n    \"message\": \"The message has been successfully sent.\",\n    \"data\": {}\n}"
-						},
-						{
-							"name": "Response Failed",
-							"originalRequest": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json",
-										"name": "Content-Type",
-										"type": "text"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"forward\": {\r\n            \"key\": {\r\n                \"id\": null\r\n            },\r\n            \"message\": {\r\n                \"conversation\": \"hi this message is forwarded\"\r\n            }\r\n        }\r\n    }\r\n}",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{base_url}}/chats/send?id={{session}}",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"chats",
-										"send"
-									],
-									"query": [
-										{
-											"key": "id",
-											"value": "{{session}}",
-											"description": "Your created session id."
-										}
-									]
-								}
-							},
-							"status": "Internal Server Error",
-							"code": 500,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "X-Powered-By",
-									"value": "Express"
-								},
-								{
-									"key": "Content-Type",
-									"value": "application/json; charset=utf-8"
-								},
-								{
-									"key": "Content-Length",
-									"value": "67"
-								},
-								{
-									"key": "ETag",
-									"value": "W/\"43-VVa944bJzICOqHAXbrMtuGViNDY\""
-								},
-								{
-									"key": "Date",
-									"value": "Mon, 14 Feb 2022 13:58:14 GMT"
-								},
-								{
-									"key": "Connection",
-									"value": "keep-alive"
-								},
-								{
-									"key": "Keep-Alive",
-									"value": "timeout=5"
-								}
-							],
-							"cookie": [],
-							"body": "{\n    \"success\": false,\n    \"message\": \"Failed to send the message.\",\n    \"data\": {}\n}"
+							"body": "{\n    \"success\": false,\n    \"message\": \"Failed to delete message .\",\n    \"data\": {}\n}"
 						}
 					]
 				},
@@ -4151,7 +3750,7 @@
 								}
 							]
 						},
-						"description": "This lets the person/group with id know whether you're online, offline, typing etc.\n\nPresence can be one of the following:\n\n- `unavailable`\n- `available`\n- `composing`\n- `recording`\n- `paused`"
+						"description": "Tell a chat whether you are online, offline, typing, and so on.\n\nPresence can be one of the following:\n\n- `unavailable`\n- `available`\n- `composing`\n- `recording`\n- `paused`\n\n`isGroup` selects group handling for `receiver`.\n\n`composing` is what a typing indicator is. The `typing` option on the send\nendpoints does this for you and clears it again — see **Send Message**."
 					},
 					"response": [
 						{
@@ -4337,7 +3936,7 @@
 								}
 							]
 						},
-						"description": "Send message to someone."
+						"description": "Mark messages as read, clearing their unread badge for this session.\n\n`keys` is an array of message keys, and at least one must carry an `id`.\n\nFor a group message include `participant`, the JID of whoever sent it — without\nit WhatsApp cannot tell which message you mean."
 					},
 					"response": [
 						{
@@ -4406,7 +4005,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n    \"success\": true,\n    \"message\": \"The message has been successfully sent.\",\n    \"data\": {}\n}"
+							"body": "{\n    \"success\": true,\n    \"message\": \"The message has been successfully marked as read.\",\n    \"data\": {}\n}"
 						},
 						{
 							"name": "Response Failed",
@@ -4481,12 +4080,12 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n    \"success\": false,\n    \"message\": \"Failed to send the message.\",\n    \"data\": {}\n}"
+							"body": "{\n    \"success\": false,\n    \"message\": \"Failed to mark the message as read.\",\n    \"data\": {}\n}"
 						}
 					]
 				},
 				{
-					"name": "Send  Bulk Message",
+					"name": "Send Bulk Message",
 					"request": {
 						"method": "POST",
 						"header": [
@@ -4523,7 +4122,7 @@
 								}
 							]
 						},
-						"description": "Send message to multiple person.\n\nYou can also set custom `delay` between each message by adding the delay (in milliseconds) to the `delay` properties. Default value is `1000` if you don't provide any delay or you provide an invalid delay.\n\nExample:\n\n``` javascript\n[\n  {\n    \"receiver\": \"628231xxxxx\",\n    // 1000ms / 1 seconds delay before it try to send the message since we don't provide any delay\n    \"message\": {\n      \"text\": \"hi! how are you?\"\n    }\n  },\n  {\n    \"receiver\": \"628950xxxxx\",\n    \"delay\": 60000, // 1 minutes delay before it try to send the message\n    \"message\": {\n      \"text\": \"i'm fine, thank you!\"\n    }\n  }\n]\n\n```"
+						"description": "Send message to multiple person.\n\nYou can also set custom `delay` between each message by adding the delay (in milliseconds) to the `delay` properties. Default value is `1000` if you don't provide any delay or you provide an invalid delay.\n\nExample:\n\n``` javascript\n[\n  {\n    \"receiver\": \"628231xxxxx\",\n    // 1000ms / 1 seconds delay before it try to send the message since we don't provide any delay\n    \"message\": {\n      \"text\": \"hi! how are you?\"\n    }\n  },\n  {\n    \"receiver\": \"628950xxxxx\",\n    \"delay\": 60000, // 1 minutes delay before it try to send the message\n    \"message\": {\n      \"text\": \"i'm fine, thank you!\"\n    }\n  }\n]\n\n```\n\n### Typing indicator (per recipient)\n\nAdd `typing` to any entry to show \"typing…\" before the message is delivered.\n\n| Value | What happens |\n| --- | --- |\n| `true` | Derive a duration from the length of the message text |\n| `1500` | Show it for 1500 ms |\n| `{ \"duration\": 1500 }` | Same thing |\n| `false`, `0`, `\"\"` | No indicator — the default when omitted |\n\nThe indicator is always cleared before the message is sent, and a socket that\nrefuses to show it will not stop the message going out."
 					},
 					"response": [
 						{
@@ -4755,6 +4354,194 @@
 			"description": "Endpoint with message utilities (send, download, delete)"
 		},
 		{
+			"name": "Contacts",
+			"description": "Look up whether a phone number, LID or username exists on WhatsApp, and resolve between the three.",
+			"item": [
+				{
+					"name": "Check On WhatsApp",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text",
+								"disabled": true
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"numbers\": [\n        \"{{receiver}}\"\n    ],\n    \"lids\": [\n        \"123456789012345\"\n    ],\n    \"usernames\": [\n        \"someone\"\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/contacts/check?id={{session}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"contacts",
+								"check"
+							],
+							"query": [
+								{
+									"key": "id",
+									"value": "{{session}}",
+									"description": "Your created session id."
+								}
+							]
+						},
+						"description": "Check whether phone numbers, LIDs and usernames exist on WhatsApp.\n\nAll three fields are optional, but at least one is required. Each is an array and\neach is reported back **separately**, because they answer different questions: a\nnumber lookup wants its LID back, a LID lookup wants the phone number behind it,\nand a username lookup wants the JID.\n\n- **`lid` is the only way to learn the number ↔ LID mapping.** LIDs are opaque,\n  so nothing about them can be derived. A number with no published LID reports\n  `lid: null`; it still exists.\n- **A LID lookup answers with the phone number in `jid`** — the reverse mapping.\n  That is why the two lists are not merged.\n- **`contact`** says whether the account is a saved contact of the session, not\n  whether the username exists.\n- Unknown values come back with `exists: false`, in the same order you sent them.\n- Numbers are normalised, so `+62 811 111 1111` and `628111111111` match. A value\n  with no digits at all is rejected with `400`.\n- Long lists are batched 50 users per USync query.\n\nThe session must be **logged in**; an unscanned QR session is refused with `400`\nrather than left to wait out the query timeout."
+					},
+					"response": [
+						{
+							"name": "Response Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text",
+										"disabled": true
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"numbers\": [\n        \"{{receiver}}\"\n    ],\n    \"lids\": [\n        \"123456789012345\"\n    ],\n    \"usernames\": [\n        \"someone\"\n    ]\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/contacts/check?id={{session}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"contacts",
+										"check"
+									],
+									"query": [
+										{
+											"key": "id",
+											"value": "{{session}}",
+											"description": "Your created session id."
+										}
+									]
+								},
+								"description": "Check whether phone numbers, LIDs and usernames exist on WhatsApp.\n\nAll three fields are optional, but at least one is required. Each is an array and\neach is reported back **separately**, because they answer different questions: a\nnumber lookup wants its LID back, a LID lookup wants the phone number behind it,\nand a username lookup wants the JID.\n\n- **`lid` is the only way to learn the number ↔ LID mapping.** LIDs are opaque,\n  so nothing about them can be derived. A number with no published LID reports\n  `lid: null`; it still exists.\n- **A LID lookup answers with the phone number in `jid`** — the reverse mapping.\n  That is why the two lists are not merged.\n- **`contact`** says whether the account is a saved contact of the session, not\n  whether the username exists.\n- Unknown values come back with `exists: false`, in the same order you sent them.\n- Numbers are normalised, so `+62 811 111 1111` and `628111111111` match. A value\n  with no digits at all is rejected with `400`.\n- Long lists are batched 50 users per USync query.\n\nThe session must be **logged in**; an unscanned QR session is refused with `400`\nrather than left to wait out the query timeout."
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "X-Powered-By",
+									"value": "Express"
+								},
+								{
+									"key": "Content-Type",
+									"value": "application/json; charset=utf-8"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"success\": true,\n    \"message\": \"Checked 3 target(s), 3 exist on WhatsApp.\",\n    \"data\": {\n        \"numbers\": [\n            {\n                \"input\": \"{{receiver}}\",\n                \"jid\": \"{{receiver}}@s.whatsapp.net\",\n                \"exists\": true,\n                \"lid\": \"123456789012345@lid\"\n            }\n        ],\n        \"lids\": [\n            {\n                \"input\": \"123456789012345\",\n                \"jid\": \"{{receiver}}@s.whatsapp.net\",\n                \"lid\": \"123456789012345@lid\",\n                \"exists\": true\n            }\n        ],\n        \"usernames\": [\n            {\n                \"input\": \"someone\",\n                \"jid\": \"{{receiver}}@s.whatsapp.net\",\n                \"exists\": true,\n                \"contact\": false\n            }\n        ]\n    }\n}"
+						}
+					]
+				},
+				{
+					"name": "Get Username",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/contacts/username/:jid?id={{session}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"contacts",
+								"username",
+								":jid"
+							],
+							"query": [
+								{
+									"key": "id",
+									"value": "{{session}}",
+									"description": "Your created session id."
+								}
+							],
+							"variable": [
+								{
+									"key": "jid",
+									"value": "{{receiver}}@s.whatsapp.net",
+									"description": "A phone or LID JID."
+								}
+							]
+						},
+						"description": "The username of an account, if it has one.\n\n`username` is `null` for an account that has not set one — that is a `200`, not a\n`404`, because \"this account has no username\" is an answer rather than an error."
+					},
+					"response": [
+						{
+							"name": "Response Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/contacts/username/:jid?id={{session}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"contacts",
+										"username",
+										":jid"
+									],
+									"query": [
+										{
+											"key": "id",
+											"value": "{{session}}",
+											"description": "Your created session id."
+										}
+									],
+									"variable": [
+										{
+											"key": "jid",
+											"value": "{{receiver}}@s.whatsapp.net",
+											"description": "A phone or LID JID."
+										}
+									]
+								},
+								"description": "The username of an account, if it has one.\n\n`username` is `null` for an account that has not set one — that is a `200`, not a\n`404`, because \"this account has no username\" is an answer rather than an error."
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "X-Powered-By",
+									"value": "Express"
+								},
+								{
+									"key": "Content-Type",
+									"value": "application/json; charset=utf-8"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"success\": true,\n    \"message\": \"The username has been obtained successfully.\",\n    \"data\": {\n        \"jid\": \"{{receiver}}@s.whatsapp.net\",\n        \"username\": \"someone\"\n    }\n}"
+						}
+					]
+				}
+			]
+		},
+		{
 			"name": "Groups",
 			"item": [
 				{
@@ -4778,11 +4565,11 @@
 								}
 							]
 						},
-						"description": "Get group chat list."
+						"description": "Group chats known to the session.\n\nRead from the in-memory store, so each entry holds only what a chat list holds —\nid, name, unread count, timestamps. **No participant lists.**\n\nFor the members, use **Group List With Participants**, which asks WhatsApp\ndirectly."
 					},
 					"response": [
 						{
-							"name": "Response Success",
+							"name": "Response Success (abbreviated)",
 							"originalRequest": {
 								"method": "GET",
 								"header": [],
@@ -4837,7 +4624,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n    \"success\": true,\n    \"message\": \"\",\n    \"data\": [\n        {\n            \"id\": \"628950xxxxx-16310xxxxx@g.us\",\n            \"unreadCount\": 0,\n            \"readOnly\": false,\n            \"ephemeralExpiration\": 0,\n            \"conversationTimestamp\": \"1644825488\",\n            \"name\": \"Raventale\",\n            \"pHash\": \"xxxxx\",\n            \"notSpam\": true,\n            \"unreadMentionCount\": 0\n        },\n        ...\n    ]\n}"
+							"body": "{\n    \"success\": true,\n    \"message\": \"\",\n    \"data\": [\n        {\n            \"id\": \"628950xxxxx-16310xxxxx@g.us\",\n            \"unreadCount\": 0,\n            \"readOnly\": false,\n            \"ephemeralExpiration\": 0,\n            \"conversationTimestamp\": \"1644825488\",\n            \"name\": \"Raventale\",\n            \"pHash\": \"xxxxx\",\n            \"notSpam\": true,\n            \"unreadMentionCount\": 0\n        }\n    ]\n}"
 						}
 					]
 				},
@@ -4847,7 +4634,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/groups/:jid?id={{session}}&limit=2&cursor_fromMe=false",
+							"raw": "{{base_url}}/groups/:jid?id={{session}}&limit=2&cursorFromMe=false",
 							"host": [
 								"{{base_url}}"
 							],
@@ -4867,13 +4654,13 @@
 									"description": "Limit data length. Default: 25 (Optional)."
 								},
 								{
-									"key": "cursor_id",
+									"key": "cursorId",
 									"value": "REDACTED",
 									"description": "id field from message key used as cursor to fetch previous messages (Optional).",
 									"disabled": true
 								},
 								{
-									"key": "cursor_fromMe",
+									"key": "cursorFromMe",
 									"value": "false",
 									"description": "fromMe field from message key used as cursor to fetch previous messages. Value: 'true' or 'false', default: 'false' (Optional)."
 								}
@@ -4881,21 +4668,21 @@
 							"variable": [
 								{
 									"key": "jid",
-									"value": "120363027219852289@g.us",
-									"description": "Group jid."
+									"value": "{{jid}}@g.us",
+									"description": "The group jid, or the chat jid."
 								}
 							]
 						},
-						"description": "Load conversation in a group in paginated manner."
+						"description": "Message history of a group, newest first.\n\nSame paging contract as `GET /chats/:jid`, minus `isGroup` — the `jid` of this\nroute is always a group.\n\n| Query | Meaning |\n| --- | --- |\n| `limit` | How many messages to return. Default `25`. |\n| `cursorId` | A message id from this group; the results are the messages older than it. |\n| `cursorFromMe` | The `fromMe` flag of that same cursor message. |\n\nThe names are **camelCase** — `cursorId`, not `cursor_id`. An unrecognised query\nparameter is ignored rather than rejected."
 					},
 					"response": [
 						{
-							"name": "Response Success",
+							"name": "Response Success (abbreviated)",
 							"originalRequest": {
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "{{base_url}}/groups/:jid?id={{session}}&limit=25&cursor_id=REDACTED",
+									"raw": "{{base_url}}/groups/:jid?id={{session}}&limit=25&cursorId=REDACTED",
 									"host": [
 										"{{base_url}}"
 									],
@@ -4915,7 +4702,7 @@
 											"description": "Limit data length. Default: 25 (Optional)."
 										},
 										{
-											"key": "cursor_id",
+											"key": "cursorId",
 											"value": "REDACTED",
 											"description": "id from message key used as cursor to fetch previous messages (Optional)."
 										}
@@ -4963,7 +4750,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n    \"success\": true,\n    \"message\": \"\",\n    \"data\": [\n        {\n            \"key\": {\n                \"remoteJid\": \"628950xxxxx-16310xxxxx@g.us\",\n                \"fromMe\": true,\n                \"id\": \"REDACTED\"\n            },\n            \"message\": {\n                \"conversation\": \"Hi guys, how are you?\"\n            },\n            \"messageTimestamp\": \"1644713060\",\n            \"status\": \"READ\",\n            \"userReceipt\": [\n                {\n                    \"userJid\": \"628950xxxxx@s.whatsapp.net\",\n                    \"receiptTimestamp\": \"1644713064000\",\n                    \"readTimestamp\": \"1644713075000\",\n                    \"playedTimestamp\": \"0\"\n                },\n                {\n                    \"userJid\": \"628231xxxxx@s.whatsapp.net\",\n                    \"receiptTimestamp\": \"1644713064000\",\n                    \"readTimestamp\": \"1644713071000\",\n                    \"playedTimestamp\": \"0\"\n                }\n            ]\n        },\n        ...\n    ]\n}"
+							"body": "{\n    \"success\": true,\n    \"message\": \"\",\n    \"data\": [\n        {\n            \"key\": {\n                \"remoteJid\": \"628950xxxxx-16310xxxxx@g.us\",\n                \"fromMe\": true,\n                \"id\": \"REDACTED\"\n            },\n            \"message\": {\n                \"conversation\": \"Hi guys, how are you?\"\n            },\n            \"messageTimestamp\": \"1644713060\",\n            \"status\": \"READ\",\n            \"userReceipt\": [\n                {\n                    \"userJid\": \"628950xxxxx@s.whatsapp.net\",\n                    \"receiptTimestamp\": \"1644713064000\",\n                    \"readTimestamp\": \"1644713075000\",\n                    \"playedTimestamp\": \"0\"\n                },\n                {\n                    \"userJid\": \"628231xxxxx@s.whatsapp.net\",\n                    \"receiptTimestamp\": \"1644713064000\",\n                    \"readTimestamp\": \"1644713071000\",\n                    \"playedTimestamp\": \"0\"\n                }\n            ]\n        }\n    ]\n}"
 						},
 						{
 							"name": "Response Failed",
@@ -4971,7 +4758,7 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "{{base_url}}/groups/:jid?id={{session}}&limit=25&cursor_id=REDACTED",
+									"raw": "{{base_url}}/groups/:jid?id={{session}}&limit=25&cursorId=REDACTED",
 									"host": [
 										"{{base_url}}"
 									],
@@ -4991,7 +4778,7 @@
 											"description": "Limit data length. Default: 25 (Optional)."
 										},
 										{
-											"key": "cursor_id",
+											"key": "cursorId",
 											"value": "REDACTED",
 											"description": "Cursor id field (Optional)."
 										}
@@ -5068,11 +4855,12 @@
 							"variable": [
 								{
 									"key": "jid",
-									"value": "120363027219852289@g.us",
-									"description": "Group jid."
+									"value": "{{jid}}@g.us",
+									"description": "The group jid, or the chat jid."
 								}
 							]
-						}
+						},
+						"description": "Full metadata of one group: subject, description, owner, creation time,\nsettings, and the participant list with each member's admin role.\n\n`400` when the group does not exist or the session is not a member. This asks\nWhatsApp, so it needs a live connection."
 					},
 					"response": [
 						{
@@ -5182,7 +4970,7 @@
 								}
 							]
 						},
-						"description": "Allows you to create a group on whatsapp it is necessary that the participants are in your contact list"
+						"description": "Create a group, with the session as owner and the given participants.\n\nParticipants are phone numbers or JIDs and are normalised, so\n`+62 811 111 1111` works as well as `628111111111`."
 					},
 					"response": [
 						{
@@ -5358,14 +5146,14 @@
 							}
 						},
 						"url": {
-							"raw": "{{base_url}}/groups/participants-update/{{jid}}?id={{session}}",
+							"raw": "{{base_url}}/groups/participants-update/:jid?id={{session}}",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
 								"groups",
 								"participants-update",
-								"{{jid}}"
+								":jid"
 							],
 							"query": [
 								{
@@ -5373,9 +5161,16 @@
 									"value": "{{session}}",
 									"description": "Your created session id."
 								}
+							],
+							"variable": [
+								{
+									"key": "jid",
+									"value": "{{jid}}@g.us",
+									"description": "The group jid, or the chat jid."
+								}
 							]
 						},
-						"description": "It allows you to update a group in whatsapp it is necessary that the participants are in your list if you want to add them\n\nStartFragment\n\nReplace this parameter `action` with:\n\n- `add`\n- `remove`\n- `demote`\n- `promote`\n    \n\nEndFragment"
+						"description": "Add, remove, promote or demote members.\n\n`action` is one of `add`, `remove`, `promote`, `demote`. Participants are\nnormalised the same way as on create.\n\nRequires admin rights for every action except leaving."
 					},
 					"response": [
 						{
@@ -5525,7 +5320,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n    \"success\": false,\n    \"message\": \"Failed update participants\",\n    \"data\": {}\n}"
+							"body": "{\n    \"success\": false,\n    \"message\": \"Failed update participants.\",\n    \"data\": {}\n}"
 						}
 					]
 				},
@@ -5551,14 +5346,14 @@
 							}
 						},
 						"url": {
-							"raw": "{{base_url}}/groups/subject-update/{{jid}}?id={{session}}",
+							"raw": "{{base_url}}/groups/subject-update/:jid?id={{session}}",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
 								"groups",
 								"subject-update",
-								"{{jid}}"
+								":jid"
 							],
 							"query": [
 								{
@@ -5566,9 +5361,16 @@
 									"value": "{{session}}",
 									"description": "Your created session id."
 								}
+							],
+							"variable": [
+								{
+									"key": "jid",
+									"value": "{{jid}}@g.us",
+									"description": "The group jid, or the chat jid."
+								}
 							]
 						},
-						"description": "It allows you to update a group in whatsapp it is necessary that the participants are in your list if you want to add them\n\nStartFragment\n\nReplace this parameter `action` with:\n\n- `add`\n- `remove`\n- `demote`\n- `promote`\n    \n\nEndFragment"
+						"description": "Change the group subject (its name). Requires admin rights."
 					},
 					"response": [
 						{
@@ -5746,14 +5548,14 @@
 							}
 						},
 						"url": {
-							"raw": "{{base_url}}/groups/description-update/{{jid}}?id={{session}}",
+							"raw": "{{base_url}}/groups/description-update/:jid?id={{session}}",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
 								"groups",
 								"description-update",
-								"{{jid}}"
+								":jid"
 							],
 							"query": [
 								{
@@ -5761,9 +5563,16 @@
 									"value": "{{session}}",
 									"description": "Your created session id."
 								}
+							],
+							"variable": [
+								{
+									"key": "jid",
+									"value": "{{jid}}@g.us",
+									"description": "The group jid, or the chat jid."
+								}
 							]
 						},
-						"description": "It allows you to update a group in whatsapp it is necessary that the participants are in your list if you want to add them\n\nStartFragment\n\nReplace this parameter `action` with:\n\n- `add`\n- `remove`\n- `demote`\n- `promote`\n    \n\nEndFragment"
+						"description": "Change the group description. Requires admin rights."
 					},
 					"response": [
 						{
@@ -5941,14 +5750,14 @@
 							}
 						},
 						"url": {
-							"raw": "{{base_url}}/groups/setting-update/{{jid}}?id={{session}}",
+							"raw": "{{base_url}}/groups/setting-update/:jid?id={{session}}",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
 								"groups",
 								"setting-update",
-								"{{jid}}"
+								":jid"
 							],
 							"query": [
 								{
@@ -5956,9 +5765,16 @@
 									"value": "{{session}}",
 									"description": "Your created session id."
 								}
+							],
+							"variable": [
+								{
+									"key": "jid",
+									"value": "{{jid}}@g.us",
+									"description": "The group jid, or the chat jid."
+								}
 							]
 						},
-						"description": "It allows you to change group settings\n\nReplace this parameter `settings`with:\n\n- only allow admins to send messages: `announcement`\n- allow everyone to send messages: `not_announcement`\n- allow everyone to modify the group's settings -- like display picture etc: `unlocked`\n- only allow admins to modify the group's settings: `locked`"
+						"description": "Change who may edit the group and who may post.\n\n`settings` is one of:\n\n| Value | Meaning |\n| --- | --- |\n| `announcement` | Only admins may send messages |\n| `not_announcement` | Everyone may send messages |\n| `locked` | Only admins may edit the group info |\n| `unlocked` | Everyone may edit the group info |\n\nRequires admin rights. An unrecognised value is refused by WhatsApp."
 					},
 					"response": [
 						{
@@ -6034,7 +5850,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n    \"success\": true,\n    \"message\": \"Update description successfully.\",\n    \"data\": {}\n}"
+							"body": "{\n    \"success\": true,\n    \"message\": \"Update setting successfully.\",\n    \"data\": {}\n}"
 						},
 						{
 							"name": "Response Failed",
@@ -6127,14 +5943,14 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/groups/invite-code/{{jid}}?id={{session}}",
+							"raw": "{{base_url}}/groups/invite-code/:jid?id={{session}}",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
 								"groups",
 								"invite-code",
-								"{{jid}}"
+								":jid"
 							],
 							"query": [
 								{
@@ -6142,9 +5958,16 @@
 									"value": "{{session}}",
 									"description": "Your created session id."
 								}
+							],
+							"variable": [
+								{
+									"key": "jid",
+									"value": "{{jid}}@g.us",
+									"description": "The group jid, or the chat jid."
+								}
 							]
 						},
-						"description": "To get the invite code for a group\n\nConcatenate: [https://chat.whatsapp.com/](https://chat.whatsapp.com/LpwHX9drRx2DlCzmVxCfUm)`xxxxxxxxx`"
+						"description": "The group's current invite code, for an admin to share.\n\nThe code is the tail of a `https://chat.whatsapp.com/...` link."
 					},
 					"response": [
 						{
@@ -6318,7 +6141,7 @@
 								}
 							]
 						},
-						"description": "To join the group using the invitation code"
+						"description": "Join a group using an invite code or link.\n\n`invite` takes the code itself or the full `https://chat.whatsapp.com/...`\nlink. The joined group is returned on success."
 					},
 					"response": [
 						{
@@ -6485,14 +6308,14 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/groups/revoke-code/{{jid}}?id={{session}}",
+							"raw": "{{base_url}}/groups/revoke-code/:jid?id={{session}}",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
 								"groups",
 								"revoke-code",
-								"{{jid}}"
+								":jid"
 							],
 							"query": [
 								{
@@ -6500,9 +6323,16 @@
 									"value": "{{session}}",
 									"description": "Your created session id."
 								}
+							],
+							"variable": [
+								{
+									"key": "jid",
+									"value": "{{jid}}@g.us",
+									"description": "The group jid, or the chat jid."
+								}
 							]
 						},
-						"description": "To join the group using the invitation code"
+						"description": "Invalidate the group's current invite link and return the replacement.\n\nAnyone holding the old code loses access. Requires admin rights."
 					},
 					"response": [
 						{
@@ -6662,14 +6492,14 @@
 							}
 						},
 						"url": {
-							"raw": "{{base_url}}/groups/profile-picture/{{jid}}?id={{session}}",
+							"raw": "{{base_url}}/groups/profile-picture/:jid?id={{session}}",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
 								"groups",
 								"profile-picture",
-								"{{jid}}"
+								":jid"
 							],
 							"query": [
 								{
@@ -6677,9 +6507,16 @@
 									"value": "{{session}}",
 									"description": "Your created session id."
 								}
+							],
+							"variable": [
+								{
+									"key": "jid",
+									"value": "{{jid}}@g.us",
+									"description": "The group jid, or the chat jid."
+								}
 							]
 						},
-						"description": "To change your display picture or a group's"
+						"description": "Set the group's profile picture from a public image URL.\n\nThe URL must be reachable by the server, not just by you. `400` when the group\ndoes not exist or the session is not a participant."
 					},
 					"response": [
 						{
@@ -6836,7 +6673,7 @@
 					]
 				},
 				{
-					"name": "Group List Without Participants",
+					"name": "Group List With Participants",
 					"request": {
 						"method": "POST",
 						"header": [
@@ -6863,7 +6700,7 @@
 								}
 							]
 						},
-						"description": "To list of group with participants"
+						"description": "Every group the session participates in, **with** its participant list.\n\nUnlike `GET /groups`, which answers from the in-memory store, this asks WhatsApp\ndirectly: slower, but current. Use it when you need the members, and `GET /groups`\nwhen you only need the chat list.\n\nRenamed from \"Group List Without Participants\", which described the opposite of\nwhat this does."
 					},
 					"response": [
 						{
@@ -6998,8 +6835,207 @@
 							"body": "{\n    \"success\": false,\n    \"message\": \"Failed to get group list with participants.\",\n    \"data\": {}\n}"
 						}
 					]
+				},
+				{
+					"name": "Send Message To Group",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text",
+								"disabled": true
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"receiver\": \"{{jid}}@g.us\",\n    \"message\": {\n        \"text\": \"hello everyone!\"\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/groups/send/:jid?id={{session}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"groups",
+								"send",
+								":jid"
+							],
+							"query": [
+								{
+									"key": "id",
+									"value": "{{session}}",
+									"description": "Your created session id."
+								}
+							],
+							"variable": [
+								{
+									"key": "jid",
+									"value": "{{jid}}@g.us",
+									"description": "The group jid, or the chat jid."
+								}
+							]
+						},
+						"description": "Send a message to a group.\n\nThe group is taken from `receiver` in the body — the `:jid` path segment is\nrequired by the route but not read, so pass the group JID in both places.\n\nUse `POST /chats/send` with `isGroup: true` for the same thing without the path\nsegment."
+					},
+					"response": [
+						{
+							"name": "Response Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text",
+										"disabled": true
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"receiver\": \"{{jid}}@g.us\",\n    \"message\": {\n        \"text\": \"hello everyone!\"\n    }\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/groups/send/:jid?id={{session}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"groups",
+										"send",
+										":jid"
+									],
+									"query": [
+										{
+											"key": "id",
+											"value": "{{session}}",
+											"description": "Your created session id."
+										}
+									],
+									"variable": [
+										{
+											"key": "jid",
+											"value": "{{jid}}@g.us",
+											"description": "The group jid, or the chat jid."
+										}
+									]
+								},
+								"description": "Send a message to a group.\n\nThe group is taken from `receiver` in the body — the `:jid` path segment is\nrequired by the route but not read, so pass the group JID in both places.\n\nUse `POST /chats/send` with `isGroup: true` for the same thing without the path\nsegment."
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "X-Powered-By",
+									"value": "Express"
+								},
+								{
+									"key": "Content-Type",
+									"value": "application/json; charset=utf-8"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"success\": true,\n    \"message\": \"The message has been successfully sent.\",\n    \"data\": {}\n}"
+						}
+					]
+				},
+				{
+					"name": "Leave Group",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/groups/leave/:jid?id={{session}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"groups",
+								"leave",
+								":jid"
+							],
+							"query": [
+								{
+									"key": "id",
+									"value": "{{session}}",
+									"description": "Your created session id."
+								}
+							],
+							"variable": [
+								{
+									"key": "jid",
+									"value": "{{jid}}@g.us",
+									"description": "The group jid, or the chat jid."
+								}
+							]
+						},
+						"description": "Leave a group. The session must be a participant."
+					},
+					"response": [
+						{
+							"name": "Response Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/groups/leave/:jid?id={{session}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"groups",
+										"leave",
+										":jid"
+									],
+									"query": [
+										{
+											"key": "id",
+											"value": "{{session}}",
+											"description": "Your created session id."
+										}
+									],
+									"variable": [
+										{
+											"key": "jid",
+											"value": "{{jid}}@g.us",
+											"description": "The group jid, or the chat jid."
+										}
+									]
+								},
+								"description": "Leave a group. The session must be a participant."
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "X-Powered-By",
+									"value": "Express"
+								},
+								{
+									"key": "Content-Type",
+									"value": "application/json; charset=utf-8"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"success\": true,\n    \"message\": \"Leave group successfully.\",\n    \"data\": {}\n}"
+						}
+					]
 				}
-			]
+			],
+			"description": "Group administration. Every route below takes the session id as `?id=` and the group as a `:jid` path segment."
 		},
 		{
 			"name": "Misc",
@@ -7021,7 +7057,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\r\n    \"receiver\": \"573002782284\",\r\n    \"message\": {\r\n        \"text\": \"hello there!\"\r\n    },\r\n    \"options\": {\r\n        \"backgroundColor\": \"#103529\",\r\n        \"font\": 12,\r\n        \"broadcast\": true,\r\n        \"statusJidList\": [\r\n            \"573002782284@s.whatsapp.net\",\r\n            \"573219100149@s.whatsapp.net\"\r\n        ]\r\n    }\r\n}",
+									"raw": "{\r\n    \"receiver\": \"all_contacts\",\r\n    \"message\": {\r\n        \"text\": \"hello there!\"\r\n    },\r\n    \"options\": {\r\n        \"backgroundColor\": \"#103529\",\r\n        \"font\": 12\r\n    }\r\n}",
 									"options": {
 										"raw": {
 											"language": "json"
@@ -7045,7 +7081,7 @@
 										}
 									]
 								},
-								"description": "Send message to someone."
+								"description": "**Create Text Story**\n\n**Parameter:** `receiver` — _string_ or _array_\n\nUse the `receiver` field to specify the contact(s) who will receive the story. Depending on your use case, follow the format below:\n\n- **To send to all contacts:** \"receiver\": \"all_contacts\"\n    \n- **To send to a specific contact: use** \"receiver\": \"628231xxxxx\" or \"receiver\": \\[\"628231xxxxx\"\\]\n    \n- **To send to multiple contacts:** \"receiver\": \\[\"628231xxxxx\", \"628231xxxxx\", \"628231xxxxx\"\\]"
 							},
 							"response": [
 								{
@@ -7055,7 +7091,7 @@
 										"header": [],
 										"body": {
 											"mode": "raw",
-											"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"text\": \"hello there!\"\r\n    }\r\n}",
+											"raw": "{\r\n    \"receiver\": \"all_contacts\",\r\n    \"message\": {\r\n        \"text\": \"hello there!\"\r\n    },\r\n    \"options\": {\r\n        \"backgroundColor\": \"#103529\",\r\n        \"font\": 12\r\n    }\r\n}",
 											"options": {
 												"raw": {
 													"language": "json"
@@ -7114,7 +7150,7 @@
 										}
 									],
 									"cookie": [],
-									"body": "{\n    \"success\": true,\n    \"message\": \"The message has been successfully sent.\",\n    \"data\": {}\n}"
+									"body": "{\n    \"success\": true,\n    \"message\": \"The story status has been successfully sent.\",\n    \"data\": {}\n}"
 								},
 								{
 									"name": "Response Failed",
@@ -7189,7 +7225,7 @@
 										}
 									],
 									"cookie": [],
-									"body": "{\n    \"success\": false,\n    \"message\": \"Failed to send the message.\",\n    \"data\": {}\n}"
+									"body": "{\n    \"success\": false,\n    \"message\": \"Failed to send the story status.\",\n    \"data\": {}\n}"
 								}
 							]
 						},
@@ -7207,7 +7243,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\r\n    \"message\": {\r\n        \"image\": {\r\n            \"url\": \"https://raw.githubusercontent.com/pedrazadixon/sample-files/main/sample_image.jpg\"\r\n        },\r\n        \"caption\": \"My logo\"\r\n    },\r\n    \"options\": {\r\n        \"backgroundColor\": \"#103529\",\r\n        \"font\": 12,\r\n        \"broadcast\": true,\r\n        \"statusJidList\": [\"573002782284@s.whatsapp.net\", \"573219100149@s.whatsapp.net\"]\r\n    }\r\n}",
+									"raw": "{\r\n    \"receiver\": \"all_contacts\",\r\n    \"message\": {\r\n        \"image\": {\r\n            \"url\": \"https://raw.githubusercontent.com/pedrazadixon/sample-files/main/sample_image.jpg\"\r\n        },\r\n        \"caption\": \"My logo\"\r\n    },\r\n    \"options\": {\r\n        \"backgroundColor\": \"#103529\",\r\n        \"font\": 12\r\n    }\r\n}",
 									"options": {
 										"raw": {
 											"language": "json"
@@ -7231,7 +7267,7 @@
 										}
 									]
 								},
-								"description": "Send image to someone important specify the url  \nthe caption is not required."
+								"description": "**Create Image Story**\n\n**Parameter:** `receiver` — _string_ or _array_\n\nUse the `receiver` field to specify the contact(s) who will receive the story. Depending on your use case, follow the format below:\n\n- **To send to all contacts:** \"receiver\": \"all_contacts\"\n    \n- **To send to a specific contact: use** \"receiver\": \"628231xxxxx\" or \"receiver\": \\[\"628231xxxxx\"\\]\n    \n- **To send to multiple contacts:** \"receiver\": \\[\"628231xxxxx\", \"628231xxxxx\", \"628231xxxxx\"\\]"
 							},
 							"response": [
 								{
@@ -7241,7 +7277,7 @@
 										"header": [],
 										"body": {
 											"mode": "raw",
-											"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"image\": {\r\n            \"url\": \"https://source.unsplash.com/random/200x200\"\r\n        },\r\n        \"caption\": \"My logo\"\r\n    }\r\n}",
+											"raw": "{\r\n    \"receiver\": \"all_contacts\",\r\n    \"message\": {\r\n        \"image\": {\r\n            \"url\": \"https://raw.githubusercontent.com/pedrazadixon/sample-files/main/sample_image.jpg\"\r\n        },\r\n        \"caption\": \"My logo\"\r\n    },\r\n    \"options\": {\r\n        \"backgroundColor\": \"#103529\",\r\n        \"font\": 12\r\n    }\r\n}",
 											"options": {
 												"raw": {
 													"language": "json"
@@ -7300,7 +7336,7 @@
 										}
 									],
 									"cookie": [],
-									"body": "{\n    \"success\": true,\n    \"message\": \"The message has been successfully sent.\",\n    \"data\": {}\n}"
+									"body": "{\n    \"success\": true,\n    \"message\": \"The story status has been successfully sent.\",\n    \"data\": {}\n}"
 								},
 								{
 									"name": "Response Failed",
@@ -7375,7 +7411,7 @@
 										}
 									],
 									"cookie": [],
-									"body": "{\n    \"success\": false,\n    \"message\": \"Failed to send the message.\",\n    \"data\": {}\n}"
+									"body": "{\n    \"success\": false,\n    \"message\": \"Failed to send the story status.\",\n    \"data\": {}\n}"
 								}
 							]
 						},
@@ -7393,7 +7429,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"isBase64\": false,\r\n    \"message\": {\r\n        \"video\": {\r\n            \"url\": \"https://raw.githubusercontent.com/WhiskeySockets/Baileys/master/Media/ma_gif.mp4\"\r\n        },\r\n        \"caption\": \"My viedo\"\r\n    }\r\n}",
+									"raw": "{\r\n    \"receiver\": \"all_contacts\",\r\n    \"message\": {\r\n        \"video\": {\r\n            \"url\": \"https://raw.githubusercontent.com/WhiskeySockets/Baileys/master/Media/ma_gif.mp4\"\r\n        },\r\n        \"caption\": \"My viedo\"\r\n    },\r\n    \"options\": {\r\n        \"backgroundColor\": \"#103529\",\r\n        \"font\": 12\r\n    }\r\n}",
 									"options": {
 										"raw": {
 											"language": "json"
@@ -7417,7 +7453,7 @@
 										}
 									]
 								},
-								"description": "Send video to someone, important to specify the url"
+								"description": "**Create Video Story**\n\n**Parameter:** `receiver` — _string_ or _array_\n\nUse the `receiver` field to specify the contact(s) who will receive the story. Depending on your use case, follow the format below:\n\n- **To send to all contacts:** \"receiver\": \"all_contacts\"\n    \n- **To send to a specific contact: use** \"receiver\": \"628231xxxxx\" or \"receiver\": \\[\"628231xxxxx\"\\]\n    \n- **To send to multiple contacts:** \"receiver\": \\[\"628231xxxxx\", \"628231xxxxx\", \"628231xxxxx\"\\]"
 							},
 							"response": [
 								{
@@ -7427,7 +7463,7 @@
 										"header": [],
 										"body": {
 											"mode": "raw",
-											"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"video\": {\r\n            \"url\": \"https://raw.githubusercontent.com/adiwajshing/Baileys/master/Media/ma_gif.mp4\"\r\n        },\r\n        \"caption\": \"hello!\"\r\n    }\r\n}",
+											"raw": "{\r\n    \"receiver\": \"all_contacts\",\r\n    \"message\": {\r\n        \"video\": {\r\n            \"url\": \"https://raw.githubusercontent.com/WhiskeySockets/Baileys/master/Media/ma_gif.mp4\"\r\n        },\r\n        \"caption\": \"My viedo\"\r\n    },\r\n    \"options\": {\r\n        \"backgroundColor\": \"#103529\",\r\n        \"font\": 12\r\n    }\r\n}",
 											"options": {
 												"raw": {
 													"language": "json"
@@ -7486,7 +7522,7 @@
 										}
 									],
 									"cookie": [],
-									"body": "{\n    \"success\": true,\n    \"message\": \"The message has been successfully sent.\",\n    \"data\": {}\n}"
+									"body": "{\n    \"success\": true,\n    \"message\": \"The story status has been successfully sent.\",\n    \"data\": {}\n}"
 								},
 								{
 									"name": "Response Failed",
@@ -7561,7 +7597,7 @@
 										}
 									],
 									"cookie": [],
-									"body": "{\n    \"success\": false,\n    \"message\": \"Failed to send the message.\",\n    \"data\": {}\n}"
+									"body": "{\n    \"success\": false,\n    \"message\": \"Failed to send the story status.\",\n    \"data\": {}\n}"
 								}
 							]
 						},
@@ -7579,7 +7615,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\r\n    \"receiver\": \"573002782284\",\r\n    \"message\": {\r\n        \"audio\": {\r\n            \"url\": \"https://github.com/pedrazadixon/sample-files/raw/main/sample_mp3.mp3\"\r\n        }\r\n    },    \r\n    \"options\": {\r\n        \"backgroundColor\": \"#103529\",\r\n        \"font\": 10,\r\n        \"broadcast\": true,\r\n        \"statusJidList\": [\r\n            \"573002782284@s.whatsapp.net\",\r\n            \"573219100149@s.whatsapp.net\"\r\n        ]\r\n    }\r\n}",
+									"raw": "{\r\n    \"receiver\": \"all_contacts\",\r\n    \"message\": {\r\n        \"audio\": {\r\n            \"url\": \"https://github.com/pedrazadixon/sample-files/raw/main/sample_mp3.mp3\"\r\n        }\r\n    },    \r\n    \"options\": {\r\n        \"backgroundColor\": \"#103529\",\r\n        \"font\": 10\r\n    }\r\n}",
 									"options": {
 										"raw": {
 											"language": "json"
@@ -7603,7 +7639,7 @@
 										}
 									]
 								},
-								"description": "Send message to someone."
+								"description": "**Create Audio Story**\n\n**Parameter:** `receiver` — _string_ or _array_\n\nUse the `receiver` field to specify the contact(s) who will receive the story. Depending on your use case, follow the format below:\n\n- **To send to all contacts:** \"receiver\": \"all_contacts\"\n    \n- **To send to a specific contact: use** \"receiver\": \"628231xxxxx\" or \"receiver\": \\[\"628231xxxxx\"\\]\n    \n- **To send to multiple contacts:** \"receiver\": \\[\"628231xxxxx\", \"628231xxxxx\", \"628231xxxxx\"\\]"
 							},
 							"response": [
 								{
@@ -7613,7 +7649,7 @@
 										"header": [],
 										"body": {
 											"mode": "raw",
-											"raw": "{\r\n    \"receiver\": \"{{receiver}}\",\r\n    \"isGroup\": {{isGroup}},\r\n    \"message\": {\r\n        \"audio\": {\r\n            \"url\": \"https://raw.githubusercontent.com/adiwajshing/Baileys/master/Media/sonata.mp3\"\r\n        }\r\n    }\r\n}",
+											"raw": "{\r\n    \"receiver\": \"all_contacts\",\r\n    \"message\": {\r\n        \"audio\": {\r\n            \"url\": \"https://github.com/pedrazadixon/sample-files/raw/main/sample_mp3.mp3\"\r\n        }\r\n    },    \r\n    \"options\": {\r\n        \"backgroundColor\": \"#103529\",\r\n        \"font\": 10\r\n    }\r\n}",
 											"options": {
 												"raw": {
 													"language": "json"
@@ -7672,7 +7708,7 @@
 										}
 									],
 									"cookie": [],
-									"body": "{\n    \"success\": true,\n    \"message\": \"The message has been successfully sent.\",\n    \"data\": {}\n}"
+									"body": "{\n    \"success\": true,\n    \"message\": \"The story status has been successfully sent.\",\n    \"data\": {}\n}"
 								},
 								{
 									"name": "Response Failed",
@@ -7747,7 +7783,7 @@
 										}
 									],
 									"cookie": [],
-									"body": "{\n    \"success\": false,\n    \"message\": \"Failed to send the message.\",\n    \"data\": {}\n}"
+									"body": "{\n    \"success\": false,\n    \"message\": \"Failed to send the story status.\",\n    \"data\": {}\n}"
 								}
 							]
 						}
@@ -7766,15 +7802,13 @@
 							}
 						],
 						"body": {
-							"mode": "urlencoded",
-							"urlencoded": [
-								{
-									"key": "status",
-									"value": "My Status",
-									"description": "status you want to set",
-									"type": "text"
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"My Status\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
 								}
-							]
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/misc/update-profile-status?id={{session}}",
@@ -7792,7 +7826,7 @@
 								}
 							]
 						},
-						"description": "Update Whatsapp profile status."
+						"description": "Set the WhatsApp \"about\" text of the session."
 					},
 					"response": [
 						{
@@ -7808,14 +7842,8 @@
 									}
 								],
 								"body": {
-									"mode": "urlencoded",
-									"urlencoded": [
-										{
-											"key": "status",
-											"value": "Hi",
-											"type": "text"
-										}
-									],
+									"mode": "raw",
+									"raw": "{\n    \"status\": \"My Status\"\n}",
 									"options": {
 										"raw": {
 											"language": "json"
@@ -7888,14 +7916,8 @@
 									}
 								],
 								"body": {
-									"mode": "urlencoded",
-									"urlencoded": [
-										{
-											"key": "status",
-											"value": "Hi",
-											"type": "text"
-										}
-									],
+									"mode": "raw",
+									"raw": "{\n    \"status\": \"My Status\"\n}",
 									"options": {
 										"raw": {
 											"language": "json"
@@ -7994,7 +8016,7 @@
 								}
 							]
 						},
-						"description": "Update Whatsapp profile image.  \nNote:  \nUse url public to imagen to update"
+						"description": "Set the session's own profile picture from a public image URL.\n\nThe URL must be reachable by the server, not just by you."
 					},
 					"response": [
 						{
@@ -8160,15 +8182,13 @@
 							}
 						],
 						"body": {
-							"mode": "urlencoded",
-							"urlencoded": [
-								{
-									"key": "name",
-									"value": "Boxi",
-									"description": "name you want to set",
-									"type": "text"
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Boxi\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
 								}
-							]
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/misc/update-profile-name?id={{session}}",
@@ -8186,7 +8206,7 @@
 								}
 							]
 						},
-						"description": "Update Whatsapp profile name."
+						"description": "Set the display name of the session."
 					},
 					"response": [
 						{
@@ -8202,14 +8222,8 @@
 									}
 								],
 								"body": {
-									"mode": "urlencoded",
-									"urlencoded": [
-										{
-											"key": "status",
-											"value": "Hi",
-											"type": "text"
-										}
-									],
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"Boxi\"\n}",
 									"options": {
 										"raw": {
 											"language": "json"
@@ -8267,7 +8281,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n    \"success\": true,\n    \"message\": \"The status has been updated successfully\",\n    \"data\": {}\n}"
+							"body": "{\n    \"success\": true,\n    \"message\": \"The name has been updated successfully\",\n    \"data\": {}\n}"
 						},
 						{
 							"name": "Response Failed",
@@ -8282,14 +8296,8 @@
 									}
 								],
 								"body": {
-									"mode": "urlencoded",
-									"urlencoded": [
-										{
-											"key": "status",
-											"value": "Hi",
-											"type": "text"
-										}
-									],
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"Boxi\"\n}",
 									"options": {
 										"raw": {
 											"language": "json"
@@ -8347,7 +8355,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n    \"success\": false,\n    \"message\": \"Failed to update status\",\n    \"data\": {}\n}"
+							"body": "{\n    \"success\": false,\n    \"message\": \"Failed to update name\",\n    \"data\": {}\n}"
 						}
 					]
 				},
@@ -8355,25 +8363,7 @@
 					"name": "Get Profile",
 					"request": {
 						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"body": {
-							"mode": "urlencoded",
-							"urlencoded": [
-								{
-									"key": "name",
-									"value": "Boxi",
-									"description": "name you want to set",
-									"type": "text"
-								}
-							]
-						},
+						"header": [],
 						"url": {
 							"raw": "{{base_url}}/misc/my-profile?id={{session}}",
 							"host": [
@@ -8390,36 +8380,14 @@
 								}
 							]
 						},
-						"description": "Update Whatsapp profile name."
+						"description": "Your own profile: name, phone number, picture URL and status.\n\nA missing picture or status is not an error — either comes back as `null`."
 					},
 					"response": [
 						{
 							"name": "Response Success",
 							"originalRequest": {
 								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/x-www-form-urlencoded",
-										"name": "Content-Type",
-										"type": "text"
-									}
-								],
-								"body": {
-									"mode": "urlencoded",
-									"urlencoded": [
-										{
-											"key": "status",
-											"value": "Hi",
-											"type": "text"
-										}
-									],
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
+								"header": [],
 								"url": {
 									"raw": "{{base_url}}/misc/update-profile-status?id={{session}}",
 									"host": [
@@ -8471,35 +8439,13 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n    \"success\": true,\n    \"message\": \"The status has been updated successfully\",\n    \"data\": {}\n}"
+							"body": "{\n    \"success\": true,\n    \"message\": \"The information has been obtained successfully.\",\n    \"data\": {}\n}"
 						},
 						{
 							"name": "Response Failed",
 							"originalRequest": {
 								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/x-www-form-urlencoded",
-										"name": "Content-Type",
-										"type": "text"
-									}
-								],
-								"body": {
-									"mode": "urlencoded",
-									"urlencoded": [
-										{
-											"key": "status",
-											"value": "Hi",
-											"type": "text"
-										}
-									],
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
+								"header": [],
 								"url": {
 									"raw": "{{base_url}}/misc/update-profile-status?id={{session}}",
 									"host": [
@@ -8551,7 +8497,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n    \"success\": false,\n    \"message\": \"Failed to update status\",\n    \"data\": {}\n}"
+							"body": "{\n    \"success\": false,\n    \"message\": \"Could not get the information\",\n    \"data\": {}\n}"
 						}
 					]
 				},
@@ -8592,7 +8538,7 @@
 								}
 							]
 						},
-						"description": "Get image profile to group and user using jid"
+						"description": "Profile picture URL of a user or a group.\n\n`isGroup` selects group handling for `jid`.\n\n`404` when the account exists but has no picture. That is an ordinary answer\nrather than a failure, and it is the common case for a user who never set one."
 					},
 					"response": [
 						{
@@ -8709,8 +8655,8 @@
 									]
 								}
 							},
-							"status": "Internal Server Error",
-							"code": 500,
+							"status": "Not Found",
+							"code": 404,
 							"_postman_previewlanguage": "json",
 							"header": [
 								{
@@ -8784,7 +8730,7 @@
 								}
 							]
 						},
-						"description": "Block user using jib is posible Block user and Unblock user"
+						"description": "Block or unblock a contact.\n\n`isBlock` must be a real boolean: `true` blocks, anything else unblocks. Note\nthe strictness — the string `\"true\"` is **not** `true`, so a quoted value\nsilently unblocks instead of blocking. Send it unquoted.\n\nThe contact is not notified, and the block is one-way."
 					},
 					"response": [
 						{
@@ -8934,6 +8880,554 @@
 							],
 							"cookie": [],
 							"body": "{\n    \"success\": false,\n    \"message\": \"Failed to block or unblock contact\",\n    \"data\": {}\n}"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Scheduler",
+			"description": "Queue messages to be sent later, optionally repeating. Jobs are held in memory and mirrored to `sessions/scheduler.json`, and re-armed on boot.\n\nOnly `POST /scheduler` needs a live WhatsApp connection — a job queued for a\nsocket that cannot send would just burn through its retry budget. The other four\nroutes deliberately use a weaker session check and keep working while a session\nis reconnecting.\n\nA failed attempt is retried up to `SCHEDULER_MAX_ATTEMPTS` times, waiting\n`SCHEDULER_RETRY_DELAY` between tries. Exhausting the budget marks the job\n`failed`; it is never dropped silently.\n\n| Status | Meaning |\n| --- | --- |\n| `pending` | Waiting, waiting to retry, or an unfinished series waiting for its slot |\n| `sent` | A one-off handed to WhatsApp |\n| `completed` | A repeating job that ran its full `count`, or passed its `until` |\n| `failed` | Every attempt failed; `lastError` says why |\n| `cancelled` | Cancelled before it ran |\n| `missed` | A one-off whose time passed while the process was down past the grace window |",
+			"item": [
+				{
+					"name": "Schedule Message",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text",
+								"disabled": true
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"receiver\": \"{{receiver}}\",\n    \"isGroup\": false,\n    \"message\": {\n        \"text\": \"selamat pagi\"\n    },\n    \"scheduledAt\": \"2026-09-26T01:00:00.000Z\",\n    \"typing\": false\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/scheduler?id={{session}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"scheduler"
+							],
+							"query": [
+								{
+									"key": "id",
+									"value": "{{session}}",
+									"description": "Your created session id."
+								}
+							]
+						},
+						"description": "Queue a message to be sent later.\n\n`scheduledAt` accepts an epoch millisecond number, a numeric string, or an ISO\n8601 date string, and must be in the future.\n\n`message` is passed to Baileys untouched, so anything `POST /chats/send` accepts\nworks here too. `typing` behaves exactly as it does there.\n\n`scheduledAt` is what you asked for; `runAt` is when it will actually run. They\ndiffer once a job has been retried."
+					},
+					"response": [
+						{
+							"name": "Response Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text",
+										"disabled": true
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"receiver\": \"{{receiver}}\",\n    \"isGroup\": false,\n    \"message\": {\n        \"text\": \"selamat pagi\"\n    },\n    \"scheduledAt\": \"2026-09-26T01:00:00.000Z\",\n    \"typing\": false\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/scheduler?id={{session}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"scheduler"
+									],
+									"query": [
+										{
+											"key": "id",
+											"value": "{{session}}",
+											"description": "Your created session id."
+										}
+									]
+								},
+								"description": "Queue a message to be sent later.\n\n`scheduledAt` accepts an epoch millisecond number, a numeric string, or an ISO\n8601 date string, and must be in the future.\n\n`message` is passed to Baileys untouched, so anything `POST /chats/send` accepts\nworks here too. `typing` behaves exactly as it does there.\n\n`scheduledAt` is what you asked for; `runAt` is when it will actually run. They\ndiffer once a job has been retried."
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "X-Powered-By",
+									"value": "Express"
+								},
+								{
+									"key": "Content-Type",
+									"value": "application/json; charset=utf-8"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"success\": true,\n    \"message\": \"The message has been scheduled.\",\n    \"data\": {\n        \"id\": \"657d117d-ab1d-476c-8979-791f0dc78ed0\",\n        \"sessionId\": \"{{session}}\",\n        \"receiver\": \"{{receiver}}\",\n        \"jid\": \"{{receiver}}@s.whatsapp.net\",\n        \"isGroup\": false,\n        \"message\": {\n            \"text\": \"selamat pagi\"\n        },\n        \"typing\": false,\n        \"scheduledAt\": 1790311257000,\n        \"runAt\": 1790311257000,\n        \"repeat\": null,\n        \"runs\": 0,\n        \"status\": \"pending\",\n        \"attempts\": 0,\n        \"createdAt\": 1790307657000,\n        \"lastAttemptAt\": null,\n        \"finishedAt\": null,\n        \"sentAt\": null,\n        \"messageId\": null,\n        \"lastError\": null\n    }\n}"
+						}
+					]
+				},
+				{
+					"name": "Schedule Repeating Message",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text",
+								"disabled": true
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"receiver\": \"{{receiver}}\",\n    \"message\": {\n        \"text\": \"laporan harian\"\n    },\n    \"scheduledAt\": \"2026-09-26T01:00:00.000Z\",\n    \"repeat\": {\n        \"every\": \"daily\",\n        \"count\": 5\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/scheduler?id={{session}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"scheduler"
+							],
+							"query": [
+								{
+									"key": "id",
+									"value": "{{session}}",
+									"description": "Your created session id."
+								}
+							]
+						},
+						"description": "Queue a message that repeats.\n\n`every` accepts `hourly` / `daily` / `weekly`, a duration string (`30s`, `15m`,\n`2h`, `1d`) or a number of milliseconds. Anything under 1000 ms is rejected —\nthat is a loop, not a schedule. A bare string works as shorthand:\n`\"repeat\": \"daily\"`.\n\nTwo optional limits sit alongside it:\n\n| Field | Meaning |\n| --- | --- |\n| `count` | Total sends, the first one included. Omit for unlimited. |\n| `until` | Last time an occurrence may run. Omit for no end. |\n\n`runs` counts the occurrences actually delivered, so it doubles as the cursor\ninto the series. The job stays `pending` between sends and becomes `completed`\nonly when `count` is used up or the next slot would fall past `until`.\n\nWorth knowing:\n\n- **The cadence is anchored to `scheduledAt`, not to the last send**, so a slow\n  send or a retry does not push every later occurrence back.\n- **Occurrences missed while the process was down are skipped, not queued up.** A\n  week of downtime on a `daily` job resumes at the next slot instead of firing\n  seven messages at once.\n- **A missed series survives a restart.** Unlike a one-off, which becomes\n  `missed`, a repeating job is moved to its next slot and stays `pending`.\n- **Rescheduling restarts the series.** `PUT /scheduler/update/:jobId` with a new\n  `scheduledAt` resets `runs` to `0`.\n- **A failed occurrence burns the job, not the series.** If every attempt fails\n  the job ends as `failed`; revive it with `PUT /scheduler/update/:jobId`."
+					},
+					"response": [
+						{
+							"name": "Response Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text",
+										"disabled": true
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"receiver\": \"{{receiver}}\",\n    \"message\": {\n        \"text\": \"laporan harian\"\n    },\n    \"scheduledAt\": \"2026-09-26T01:00:00.000Z\",\n    \"repeat\": {\n        \"every\": \"daily\",\n        \"count\": 5\n    }\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/scheduler?id={{session}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"scheduler"
+									],
+									"query": [
+										{
+											"key": "id",
+											"value": "{{session}}",
+											"description": "Your created session id."
+										}
+									]
+								},
+								"description": "Queue a message that repeats.\n\n`every` accepts `hourly` / `daily` / `weekly`, a duration string (`30s`, `15m`,\n`2h`, `1d`) or a number of milliseconds. Anything under 1000 ms is rejected —\nthat is a loop, not a schedule. A bare string works as shorthand:\n`\"repeat\": \"daily\"`.\n\nTwo optional limits sit alongside it:\n\n| Field | Meaning |\n| --- | --- |\n| `count` | Total sends, the first one included. Omit for unlimited. |\n| `until` | Last time an occurrence may run. Omit for no end. |\n\n`runs` counts the occurrences actually delivered, so it doubles as the cursor\ninto the series. The job stays `pending` between sends and becomes `completed`\nonly when `count` is used up or the next slot would fall past `until`.\n\nWorth knowing:\n\n- **The cadence is anchored to `scheduledAt`, not to the last send**, so a slow\n  send or a retry does not push every later occurrence back.\n- **Occurrences missed while the process was down are skipped, not queued up.** A\n  week of downtime on a `daily` job resumes at the next slot instead of firing\n  seven messages at once.\n- **A missed series survives a restart.** Unlike a one-off, which becomes\n  `missed`, a repeating job is moved to its next slot and stays `pending`.\n- **Rescheduling restarts the series.** `PUT /scheduler/update/:jobId` with a new\n  `scheduledAt` resets `runs` to `0`.\n- **A failed occurrence burns the job, not the series.** If every attempt fails\n  the job ends as `failed`; revive it with `PUT /scheduler/update/:jobId`."
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "X-Powered-By",
+									"value": "Express"
+								},
+								{
+									"key": "Content-Type",
+									"value": "application/json; charset=utf-8"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"success\": true,\n    \"message\": \"The message has been scheduled.\",\n    \"data\": {\n        \"id\": \"657d117d-ab1d-476c-8979-791f0dc78ed0\",\n        \"sessionId\": \"{{session}}\",\n        \"receiver\": \"{{receiver}}\",\n        \"jid\": \"{{receiver}}@s.whatsapp.net\",\n        \"isGroup\": false,\n        \"message\": {\n            \"text\": \"laporan harian\"\n        },\n        \"typing\": false,\n        \"scheduledAt\": 1790311257000,\n        \"runAt\": 1790311257000,\n        \"repeat\": {\n            \"intervalMs\": 86400000,\n            \"count\": 5,\n            \"until\": null\n        },\n        \"runs\": 0,\n        \"status\": \"pending\",\n        \"attempts\": 0,\n        \"createdAt\": 1790307657000,\n        \"lastAttemptAt\": null,\n        \"finishedAt\": null,\n        \"sentAt\": null,\n        \"messageId\": null,\n        \"lastError\": null\n    }\n}"
+						}
+					]
+				},
+				{
+					"name": "List Scheduled Messages",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/scheduler/list?id={{session}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"scheduler",
+								"list"
+							],
+							"query": [
+								{
+									"key": "id",
+									"value": "{{session}}",
+									"description": "Your created session id."
+								}
+							]
+						},
+						"description": "Every job belonging to the session, newest first.\n\nThis route only reads the queue, so it keeps working while a session is\nreconnecting — which is exactly when you are most likely to want to cancel\nsomething."
+					},
+					"response": [
+						{
+							"name": "Response Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/scheduler/list?id={{session}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"scheduler",
+										"list"
+									],
+									"query": [
+										{
+											"key": "id",
+											"value": "{{session}}",
+											"description": "Your created session id."
+										}
+									]
+								},
+								"description": "Every job belonging to the session, newest first.\n\nThis route only reads the queue, so it keeps working while a session is\nreconnecting — which is exactly when you are most likely to want to cancel\nsomething."
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "X-Powered-By",
+									"value": "Express"
+								},
+								{
+									"key": "Content-Type",
+									"value": "application/json; charset=utf-8"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"success\": true,\n    \"message\": \"Scheduled message list\",\n    \"data\": [\n        {\n            \"id\": \"657d117d-ab1d-476c-8979-791f0dc78ed0\",\n            \"sessionId\": \"{{session}}\",\n            \"receiver\": \"{{receiver}}\",\n            \"jid\": \"{{receiver}}@s.whatsapp.net\",\n            \"isGroup\": false,\n            \"message\": {\n                \"text\": \"selamat pagi\"\n            },\n            \"typing\": false,\n            \"scheduledAt\": 1790311257000,\n            \"runAt\": 1790311257000,\n            \"repeat\": null,\n            \"runs\": 0,\n            \"status\": \"pending\",\n            \"attempts\": 0,\n            \"createdAt\": 1790307657000,\n            \"lastAttemptAt\": null,\n            \"finishedAt\": null,\n            \"sentAt\": null,\n            \"messageId\": null,\n            \"lastError\": null\n        }\n    ]\n}"
+						}
+					]
+				},
+				{
+					"name": "Find Scheduled Message",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/scheduler/find/:jobId?id={{session}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"scheduler",
+								"find",
+								":jobId"
+							],
+							"query": [
+								{
+									"key": "id",
+									"value": "{{session}}",
+									"description": "Your created session id."
+								}
+							],
+							"variable": [
+								{
+									"key": "jobId",
+									"value": "657d117d-ab1d-476c-8979-791f0dc78ed0",
+									"description": "The job id returned when it was scheduled."
+								}
+							]
+						},
+						"description": "One job, or `404` when the id is unknown or belongs to another session.\n\nJobs are scoped to their session: a job id from another session is invisible here."
+					},
+					"response": [
+						{
+							"name": "Response Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/scheduler/find/:jobId?id={{session}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"scheduler",
+										"find",
+										":jobId"
+									],
+									"query": [
+										{
+											"key": "id",
+											"value": "{{session}}",
+											"description": "Your created session id."
+										}
+									],
+									"variable": [
+										{
+											"key": "jobId",
+											"value": "657d117d-ab1d-476c-8979-791f0dc78ed0",
+											"description": "The job id returned when it was scheduled."
+										}
+									]
+								},
+								"description": "One job, or `404` when the id is unknown or belongs to another session.\n\nJobs are scoped to their session: a job id from another session is invisible here."
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "X-Powered-By",
+									"value": "Express"
+								},
+								{
+									"key": "Content-Type",
+									"value": "application/json; charset=utf-8"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"success\": true,\n    \"message\": \"Scheduled message found\",\n    \"data\": {\n        \"id\": \"657d117d-ab1d-476c-8979-791f0dc78ed0\",\n        \"sessionId\": \"{{session}}\",\n        \"receiver\": \"{{receiver}}\",\n        \"jid\": \"{{receiver}}@s.whatsapp.net\",\n        \"isGroup\": false,\n        \"message\": {\n            \"text\": \"selamat pagi\"\n        },\n        \"typing\": false,\n        \"scheduledAt\": 1790311257000,\n        \"runAt\": 1790311257000,\n        \"repeat\": null,\n        \"runs\": 0,\n        \"status\": \"pending\",\n        \"attempts\": 0,\n        \"createdAt\": 1790307657000,\n        \"lastAttemptAt\": null,\n        \"finishedAt\": null,\n        \"sentAt\": null,\n        \"messageId\": null,\n        \"lastError\": null\n    }\n}"
+						}
+					]
+				},
+				{
+					"name": "Update Scheduled Message",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text",
+								"disabled": true
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"scheduledAt\": \"2026-09-27T01:00:00.000Z\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/scheduler/update/:jobId?id={{session}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"scheduler",
+								"update",
+								":jobId"
+							],
+							"query": [
+								{
+									"key": "id",
+									"value": "{{session}}",
+									"description": "Your created session id."
+								}
+							],
+							"variable": [
+								{
+									"key": "jobId",
+									"value": "657d117d-ab1d-476c-8979-791f0dc78ed0",
+									"description": "The job id returned when it was scheduled."
+								}
+							]
+						},
+						"description": "Change when a job runs, or edit its content, receiver or repeat spec.\n\nSupplying a new `scheduledAt` also revives a `cancelled`, `failed` or `missed`\njob: it goes back to `pending` with a fresh attempt budget and `runs` reset to\n`0`. That is how you recover one.\n\nA job that has not finished keeps its session check, so this works while the\nsession is reconnecting."
+					},
+					"response": [
+						{
+							"name": "Response Success",
+							"originalRequest": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text",
+										"disabled": true
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"scheduledAt\": \"2026-09-27T01:00:00.000Z\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/scheduler/update/:jobId?id={{session}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"scheduler",
+										"update",
+										":jobId"
+									],
+									"query": [
+										{
+											"key": "id",
+											"value": "{{session}}",
+											"description": "Your created session id."
+										}
+									],
+									"variable": [
+										{
+											"key": "jobId",
+											"value": "657d117d-ab1d-476c-8979-791f0dc78ed0",
+											"description": "The job id returned when it was scheduled."
+										}
+									]
+								},
+								"description": "Change when a job runs, or edit its content, receiver or repeat spec.\n\nSupplying a new `scheduledAt` also revives a `cancelled`, `failed` or `missed`\njob: it goes back to `pending` with a fresh attempt budget and `runs` reset to\n`0`. That is how you recover one.\n\nA job that has not finished keeps its session check, so this works while the\nsession is reconnecting."
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "X-Powered-By",
+									"value": "Express"
+								},
+								{
+									"key": "Content-Type",
+									"value": "application/json; charset=utf-8"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"success\": true,\n    \"message\": \"The scheduled message has been updated.\",\n    \"data\": {\n        \"id\": \"657d117d-ab1d-476c-8979-791f0dc78ed0\",\n        \"sessionId\": \"{{session}}\",\n        \"receiver\": \"{{receiver}}\",\n        \"jid\": \"{{receiver}}@s.whatsapp.net\",\n        \"isGroup\": false,\n        \"message\": {\n            \"text\": \"selamat pagi\"\n        },\n        \"typing\": false,\n        \"scheduledAt\": 1790397657000,\n        \"runAt\": 1790397657000,\n        \"repeat\": null,\n        \"runs\": 0,\n        \"status\": \"pending\",\n        \"attempts\": 0,\n        \"createdAt\": 1790307657000,\n        \"lastAttemptAt\": null,\n        \"finishedAt\": null,\n        \"sentAt\": null,\n        \"messageId\": null,\n        \"lastError\": null\n    }\n}"
+						}
+					]
+				},
+				{
+					"name": "Cancel Scheduled Message",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/scheduler/delete/:jobId?id={{session}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"scheduler",
+								"delete",
+								":jobId"
+							],
+							"query": [
+								{
+									"key": "id",
+									"value": "{{session}}",
+									"description": "Your created session id."
+								}
+							],
+							"variable": [
+								{
+									"key": "jobId",
+									"value": "657d117d-ab1d-476c-8979-791f0dc78ed0",
+									"description": "The job id returned when it was scheduled."
+								}
+							]
+						},
+						"description": "Cancel a pending job. It becomes `cancelled` rather than disappearing, so it stays visible in the list.\n\nDeleting a session deletes its queued jobs with it — they belong to a session\nthat no longer exists and could never be sent."
+					},
+					"response": [
+						{
+							"name": "Response Success",
+							"originalRequest": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/scheduler/delete/:jobId?id={{session}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"scheduler",
+										"delete",
+										":jobId"
+									],
+									"query": [
+										{
+											"key": "id",
+											"value": "{{session}}",
+											"description": "Your created session id."
+										}
+									],
+									"variable": [
+										{
+											"key": "jobId",
+											"value": "657d117d-ab1d-476c-8979-791f0dc78ed0",
+											"description": "The job id returned when it was scheduled."
+										}
+									]
+								},
+								"description": "Cancel a pending job. It becomes `cancelled` rather than disappearing, so it stays visible in the list.\n\nDeleting a session deletes its queued jobs with it — they belong to a session\nthat no longer exists and could never be sent."
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "X-Powered-By",
+									"value": "Express"
+								},
+								{
+									"key": "Content-Type",
+									"value": "application/json; charset=utf-8"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"success\": true,\n    \"message\": \"The scheduled message has been cancelled.\",\n    \"data\": {\n        \"id\": \"657d117d-ab1d-476c-8979-791f0dc78ed0\",\n        \"sessionId\": \"{{session}}\",\n        \"receiver\": \"{{receiver}}\",\n        \"jid\": \"{{receiver}}@s.whatsapp.net\",\n        \"isGroup\": false,\n        \"message\": {\n            \"text\": \"selamat pagi\"\n        },\n        \"typing\": false,\n        \"scheduledAt\": 1790311257000,\n        \"runAt\": 1790311257000,\n        \"repeat\": null,\n        \"runs\": 0,\n        \"status\": \"cancelled\",\n        \"attempts\": 0,\n        \"createdAt\": 1790307657000,\n        \"lastAttemptAt\": null,\n        \"finishedAt\": 1790307657000,\n        \"sentAt\": null,\n        \"messageId\": null,\n        \"lastError\": null\n    }\n}"
 						}
 					]
 				}
