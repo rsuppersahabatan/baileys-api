@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, rmSync } from 'fs'
+import { mkdirSync, readdirSync, rmSync } from 'fs'
 import NodeCache from 'node-cache'
 import { toDataURL } from 'qrcode'
 import {
@@ -8,7 +8,7 @@ import {
     makeWASocket,
     useMultiFileAuthState,
 } from '@innovatorssoft/baileys'
-import { authDir, config, sessionsDir, storeFile } from '../config.js'
+import { authDir, config, ensureSessionsDir, storeFile } from '../config.js'
 import { logger } from '../logger.js'
 import response from '../response.js'
 import makeInMemoryStore from '../store/memory-store.js'
@@ -34,6 +34,26 @@ const quietly = async (operation) => {
     } catch {
         // The socket is usually already closed by the time we get here.
     }
+}
+
+/**
+ * Forget a session's credentials without taking its directory with it.
+ *
+ * `rm -rf` on the auth directory is what broke session creation in production:
+ * `useMultiFileAuthState` mkdirs its folder exactly once, at setup, while
+ * `saveCreds` and `keys.set` only `writeFile` into it. Deleting the directory
+ * therefore left the still-attached `creds.update` listener writing to a path
+ * that no longer existed, and every such write threw the ENOENT this had to fix.
+ *
+ * Removing the *contents* and recreating the directory keeps both sides happy:
+ * an auth directory with no `creds.json` means "not registered" to Baileys, so
+ * the credentials really are gone (a later `useMultiFileAuthState` calls
+ * `initAuthCreds()` and starts a fresh, unregistered state), and there is always
+ * a directory for an in-flight write to land in.
+ */
+const unlinkAuthDir = (sessionId) => {
+    rmSync(authDir(sessionId), { force: true, recursive: true })
+    mkdirSync(authDir(sessionId), { recursive: true })
 }
 
 const buildStore = (sessionId) => {
@@ -177,6 +197,11 @@ const handleDisconnect = async ({ sessionId, res, statusCode }) => {
     const wait = statusCode === DisconnectReason.restartRequired ? 0 : config.reconnectInterval
 
     setTimeout(() => {
+        // The previous session may have been deleted during the wait, and
+        // `rmSync` on the auth directory is recursive — recreate the root so the
+        // reconnect is not the thing that discovers the directory is gone.
+        ensureSessionsDir()
+
         createSession(sessionId, { res }).catch((error) => {
             console.error(`Could not reconnect session "${sessionId}": ${error.message}`)
         })
@@ -251,21 +276,31 @@ export const deleteSession = async (sessionId) => {
         // file we are about to remove.
         socket.store?.dispose()
 
+        // Detach every listener *before* the files go. `creds.update` is wired
+        // straight to `saveCreds`, so a socket that is still winding down would
+        // otherwise keep writing an auth directory that no longer exists —
+        // exactly the ENOENT this teardown used to produce.
+        socket.ev?.removeAllListeners()
+
         await quietly(() => socket.end?.())
         await quietly(() => socket.ws?.close())
     }
 
-    const paths = [authDir(sessionId), storeFile(sessionId), `${storeFile(sessionId)}.backup`]
-
-    for (const path of paths) {
-        rmSync(path, { force: true, recursive: true })
-    }
+    // Nothing can write to the session after this point, so it is safe to
+    // unregister it — and the background helpers that look sessions up by id
+    // (the scheduler's timer, above all) must stop finding it before the files
+    // disappear rather than after.
+    registry.forgetSession(sessionId)
 
     // Queued messages belong to the session that queued them, so they go with
     // it — otherwise they would sit in the list forever, unsendable.
     await forgetScheduledJobs(sessionId)
 
-    registry.forgetSession(sessionId)
+    for (const path of [storeFile(sessionId), `${storeFile(sessionId)}.backup`]) {
+        rmSync(path, { force: true, recursive: true })
+    }
+
+    unlinkAuthDir(sessionId)
 }
 
 /** Log the session out of WhatsApp, then remove every trace of it. */
@@ -273,6 +308,11 @@ export const logoutSession = async (sessionId) => {
     const socket = registry.getSession(sessionId)
 
     if (socket) {
+        // `logout()` emits `creds.update`, so the destination has to exist
+        // before it runs and must outlive the call. `deleteSession` is what
+        // removes it, and only afterwards.
+        ensureSessionsDir()
+
         await quietly(() => socket.logout())
     }
 
@@ -281,12 +321,7 @@ export const logoutSession = async (sessionId) => {
 
 /** Bring back every session that still has credentials on disk. */
 export const restoreSessions = () => {
-    const root = sessionsDir()
-
-    if (!existsSync(root)) {
-        return
-    }
-
+    const root = ensureSessionsDir()
     const { sessionPrefix } = config
 
     for (const entry of readdirSync(root, { withFileTypes: true })) {

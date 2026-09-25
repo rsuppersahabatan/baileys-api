@@ -657,6 +657,52 @@ If it is necessary to send multimedia message in base64 use `APP_WEBHOOK_FILE_IN
 
 Currently there's no known issues in the application code. If you find any, please kindly open a new one.
 
+### Fixed — `ENOENT ... sessions/md_<id>/creds.json` on shutdown
+
+If you deployed a version of this API from before this fix and saw this at exit:
+
+```
+Error: ENOENT: no such file or directory, open
+  '.../baileys-api/sessions/md_primav1/creds.json'
+    at async Object.writeFile (node:internal/fs/promises)
+    at async .../baileys/lib/Utils/use-multi-file-auth-state.js:46:16
+Running cleanup before exit.
+```
+
+it came from the session teardown, and the cause is worth knowing because it is
+a property of how Baileys stores its auth state:
+
+- `useMultiFileAuthState()` creates its folder **once**, at setup.
+- Its `writeData()` — used by `saveCreds` and `keys.set` — only calls
+  `writeFile` into that folder. There is no mkdir and no guard.
+- `socket.ev.on('creds.update', saveCreds)` keeps that writer attached for as
+  long as the socket lives.
+
+`deleteSession()` used to `rm -rf` the auth directory. That left the attached
+writer pointing at a path that no longer existed, so the next `creds.update`
+threw `ENOENT` — and teardown itself triggers one, because `logout()` emits it.
+"Running cleanup before exit." is not part of the error; it is the next log line,
+which is why the failure always seemed to happen on shutdown.
+
+Four things changed:
+
+1. Session teardown **detaches the socket's listeners before touching any file**,
+   so nothing can write to the session while it is being removed.
+2. The auth directory is **emptied and recreated** instead of deleted. An auth
+   directory with no `creds.json` still means "not registered" to Baileys, so the
+   credentials are genuinely gone, but there is always a destination for a write
+   that is already in flight.
+3. The session is unregistered from the registry _before_ its files are removed,
+   so background helpers that look sessions up by id stop finding a session whose
+   files are mid-deletion.
+4. `sessions/` is now created by the app itself rather than assumed. It is
+   ignored by Git, so a fresh clone and a fresh deployment start without it —
+   `restoreSessions()` used to return silently in that case instead of recovering
+   anything.
+
+`tests/session-dir.test.mjs` locks this down by reproducing the `ENOENT` against
+the real library and then asserting a write after teardown succeeds.
+
 The advisories below are a separate matter: they come from upstream packages and
 are tracked here so they are not rediscovered on every `npm audit`.
 

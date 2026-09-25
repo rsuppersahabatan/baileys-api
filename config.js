@@ -1,4 +1,5 @@
 import 'dotenv/config'
+import { mkdirSync } from 'fs'
 import { join } from 'path'
 import __dirname from './dirname.js'
 
@@ -76,8 +77,41 @@ export const config = {
 
 export const sessionsDir = (name = '') => join(__dirname, 'sessions', name)
 
-/** Directory holding the multi-file auth state for a session. */
-export const authDir = (sessionId) => sessionsDir(`${SESSION_PREFIX}${sessionId}`)
+/**
+ * Create the session root and return it.
+ *
+ * `restoreSessions()` and `createSession()` both assume the directory is there,
+ * and it is not: `sessions/` is ignored by Git, so a fresh clone and a fresh
+ * deployment start without it. Callers used to get away with that only because
+ * Baileys recreates it as a side effect of creating a session, which is a
+ * dependency worth removing — the app should not rely on a library's mkdir to
+ * keep its own data directory alive.
+ *
+ * Safe to call on every boot: `recursive: true` is a no-op when it already exists.
+ */
+export const ensureSessionsDir = () => {
+    const root = sessionsDir()
+
+    mkdirSync(root, { recursive: true })
+
+    return root
+}
+
+/**
+ * Directory holding the multi-file auth state for a session.
+ *
+ * Created on demand because `socket.ev.on('creds.update', saveCreds)` writes
+ * into it asynchronously for as long as the socket lives — including during
+ * teardown, when `deleteSession()` removes the directory under it. Every writer
+ * has to be able to assume its destination exists.
+ */
+export const authDir = (sessionId) => {
+    const dir = sessionsDir(`${SESSION_PREFIX}${sessionId}`)
+
+    mkdirSync(dir, { recursive: true })
+
+    return dir
+}
 
 /** Path of the serialized message store for a session. */
 export const storeFile = (sessionId) => sessionsDir(`${sessionId}_store.json`)
