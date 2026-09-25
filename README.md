@@ -209,6 +209,20 @@ If it is necessary to send multimedia message in base64 use `APP_WEBHOOK_FILE_IN
 
 Currently there's no known issues. If you find any, please kindly open a new one.
 
+### Dependency advisories
+
+`npm audit` reports advisories inherited from `@innovatorssoft/baileys` that this
+project cannot patch on its own:
+
+- `link-preview-js` — SSRF via IPv6 / loopback, **no fix published**. Relevant
+  because `generateHighQualityLinkPreview` is enabled, so links found in incoming
+  messages are fetched server side. Do not expose this API to untrusted callers
+  without turning that option off.
+- `protobufjs` (through `@itsukichan/libsignal-node`) — several advisories,
+  fixable with `npm audit fix`. Note that `package-lock.json` is gitignored here,
+  so the fix is not reproducible from the repo until it is committed or pinned
+  with an `overrides` entry.
+
 ## Notes
 
 - The app only provide a very simple validation, you may want to implement your own.
@@ -217,6 +231,7 @@ Currently there's no known issues. If you find any, please kindly open a new one
 - The message store keeps everything in memory and mirrors it to a json file per session; you may want to use a better data management.
 - The store also writes a `.backup` copy before a history sync overwrites existing data. It is removed together with the session.
 - `QRCODE_UPDATED` is only sent to the webhook while a session creation request is still waiting for a QR.
+- **An unscanned QR expires.** `POST /sessions/add` answers with one QR code; if it is not scanned before WhatsApp rotates it, the session logs itself out and is deleted, and you have to call `/sessions/add` again. Keep that in mind when your UI shows the QR.
 - If you have problems when deploying on **CPanel** or any other similar hosting, transpiling your code into **CommonJS** should fix the problems.
 
 ## Notice

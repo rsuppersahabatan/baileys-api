@@ -1,7 +1,7 @@
 const BASE_URI = 'http://localhost:8000/'
 const SESSION_ID = 'john'
 
-const sendMessage = async (endpoint, data) => {
+const sendRequest = async (endpoint, data) => {
     // Here we are using fetch API to send the request
     const response = await fetch(`${BASE_URI}${endpoint}?id=${SESSION_ID}`, {
         method: 'POST',
@@ -16,7 +16,7 @@ const sendMessage = async (endpoint, data) => {
 
 ;(async () => {
     // Send Text Message to Someone
-    await sendMessage('chats/send', {
+    await sendRequest('chats/send', {
         receiver: '628231xxxxx',
         message: {
             text: 'Hello there!',
@@ -24,7 +24,7 @@ const sendMessage = async (endpoint, data) => {
     })
 
     // Send Bulk Text Message to Multiple Person
-    await sendMessage('chats/send-bulk', [
+    await sendRequest('chats/send-bulk', [
         {
             receiver: '628231xxxxx',
             message: {
@@ -39,8 +39,9 @@ const sendMessage = async (endpoint, data) => {
         },
     ])
 
-    // Send Text Message to a Group
-    await sendMessage('groups/send', {
+    // Send Text Message to a Group. The group id goes in the path, not only in
+    // the body — the route is `groups/send/:jid`.
+    await sendRequest('groups/send/628950xxxxx-1631xxxxx', {
         receiver: '628950xxxxx-1631xxxxx',
         message: {
             text: 'Hello guys!',
