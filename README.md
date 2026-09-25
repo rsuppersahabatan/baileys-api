@@ -84,6 +84,13 @@ Every value has a default, so the app also starts without a `.env` file.
 ## Usage
 
 1. You can start the app by executing `npm run start` or `node .`.
+
+```
+$ npm run install
+$ npm approve-scripts --allow-scripts-pending
+$ npm run start
+```
+
 2. Now the endpoint should be available according to your environment variable configurations. Default is at `http://localhost:8000`.
 
 Also check out the `examples` directory for the basic usage examples.
