@@ -1,33 +1,33 @@
-/* eslint-disable arrow-body-style */
+import response from '../response.js'
 import {
-    getSession,
+    acceptGroupInvite,
+    createGroup,
     getChatList,
-    isExists,
+    getGroupInviteCode,
+    getGroupMetadata,
+    getParticipatingGroups,
+    isJidExists,
+    leaveGroup,
+    revokeGroupInvite,
     sendMessage,
-    formatGroup,
-    formatPhone,
-    getGroupsWithParticipants,
-    participantsUpdate,
-    updateSubject,
-    updateDescription,
-    settingUpdate,
-    leave,
-    inviteCode,
-    acceptInvite,
-    revokeInvite,
-    profilePicture,
-} from './../whatsapp.js'
-import response from './../response.js'
+    updateGroupDescription,
+    updateGroupParticipants,
+    updateGroupSetting,
+    updateGroupSubject,
+    updateProfilePictureFromUrl,
+} from '../whatsapp/actions.js'
+import { toGroupJid, toUserJid } from '../whatsapp/jid.js'
+import { getSession } from '../whatsapp/registry.js'
 
 const getList = (req, res) => {
-    return response(res, 200, true, '', getChatList(res.locals.sessionId, true))
+    return response(res, 200, true, '', getChatList(getSession(res.locals.sessionId), true))
 }
 
-const getListWithoutParticipants = async (req, res) => {
-    const session = getSession(res.locals.sessionId)
+const getParticipatingGroupsList = async (req, res) => {
     try {
-        const groups = await getGroupsWithParticipants(session)
-        return response(res, 200, true, '', groups)
+        const groups = await getParticipatingGroups(getSession(res.locals.sessionId))
+
+        response(res, 200, true, '', groups)
     } catch {
         response(res, 500, false, 'Failed to get group list with participants.')
     }
@@ -38,9 +38,9 @@ const getGroupMetaData = async (req, res) => {
     const { jid } = req.params
 
     try {
-        const data = await session.groupMetadata(jid)
+        const data = await getGroupMetadata(session, toGroupJid(jid))
 
-        if (!data.id) {
+        if (!data?.id) {
             return response(res, 400, false, 'The group is not exists.')
         }
 
@@ -53,9 +53,11 @@ const getGroupMetaData = async (req, res) => {
 const create = async (req, res) => {
     const session = getSession(res.locals.sessionId)
     const { groupName, participants } = req.body
-    const participantsformat = participants.map((e) => formatPhone(e))
+    const members = (Array.isArray(participants) ? participants : []).map(toUserJid)
+
     try {
-        const group = await session.groupCreate(groupName, participantsformat)
+        const group = await createGroup(session, groupName, members)
+
         response(res, 200, true, 'The group has been successfully created.', group)
     } catch {
         response(res, 500, false, 'Failed to create the group.')
@@ -64,18 +66,14 @@ const create = async (req, res) => {
 
 const send = async (req, res) => {
     const session = getSession(res.locals.sessionId)
+    const receiver = toGroupJid(req.body.receiver)
 
     try {
-        const receiver = formatGroup(req.body.receiver)
-        const { message } = req.body
-
-        const exists = await isExists(session, receiver, true)
-
-        if (!exists) {
+        if (!(await isJidExists(session, receiver, true))) {
             return response(res, 400, false, 'The receiver number is not exists.')
         }
 
-        await sendMessage(session, receiver, message, {}, 0)
+        await sendMessage(session, receiver, req.body.message, {}, 0)
 
         response(res, 200, true, 'The message has been successfully sent.')
     } catch {
@@ -83,20 +81,39 @@ const send = async (req, res) => {
     }
 }
 
+/**
+ * Resolve the `:jid` route param and make sure the group is real.
+ *
+ * Answers with a 400 and returns `null` when it is not, so every handler below
+ * can bail out with a single `if (!jid) return`.
+ */
+const resolveGroup = async (req, res, session) => {
+    const jid = toGroupJid(req.params.jid)
+
+    if (!(await isJidExists(session, jid, true))) {
+        response(res, 400, false, 'The group is not exists.')
+
+        return null
+    }
+
+    return jid
+}
+
 const groupParticipantsUpdate = async (req, res) => {
     const session = getSession(res.locals.sessionId)
-    try {
-        const jid = formatGroup(req.params.jid)
-        const participants = req?.body?.participants
-        const action = req?.body?.action
-        const participantsFormat = participants.map((e) => formatPhone(e))
+    const { action, participants } = req.body
 
-        const exists = await isExists(session, jid, true)
-        if (!exists) {
-            return response(res, 400, false, 'The group is not exists.')
+    try {
+        const jid = await resolveGroup(req, res, session)
+
+        if (!jid) {
+            return
         }
 
-        await participantsUpdate(session, formatGroup(jid), participantsFormat, action)
+        const members = (Array.isArray(participants) ? participants : []).map(toUserJid)
+
+        await updateGroupParticipants(session, jid, members, action)
+
         response(res, 200, true, 'Update participants successfully.')
     } catch {
         response(res, 500, false, 'Failed update participants.')
@@ -105,16 +122,15 @@ const groupParticipantsUpdate = async (req, res) => {
 
 const groupUpdateSubject = async (req, res) => {
     const session = getSession(res.locals.sessionId)
-    try {
-        const jid = formatGroup(req.params.jid)
-        const subject = req?.body?.subject
-        const exists = await isExists(session, jid, true)
 
-        if (!exists) {
-            return response(res, 400, false, 'The group is not exists.')
+    try {
+        const jid = await resolveGroup(req, res, session)
+
+        if (!jid) {
+            return
         }
 
-        await updateSubject(session, formatGroup(jid), subject)
+        await updateGroupSubject(session, jid, req.body.subject)
 
         response(res, 200, true, 'Update subject successfully.')
     } catch {
@@ -124,16 +140,15 @@ const groupUpdateSubject = async (req, res) => {
 
 const groupUpdateDescription = async (req, res) => {
     const session = getSession(res.locals.sessionId)
-    try {
-        const jid = formatGroup(req.params.jid)
-        const { description } = req.body
-        const exists = await isExists(session, jid, true)
 
-        if (!exists) {
-            return response(res, 400, false, 'The group is not exists.')
+    try {
+        const jid = await resolveGroup(req, res, session)
+
+        if (!jid) {
+            return
         }
 
-        await updateDescription(session, formatGroup(jid), description)
+        await updateGroupDescription(session, jid, req.body.description)
 
         response(res, 200, true, 'Update description successfully.')
     } catch {
@@ -143,17 +158,15 @@ const groupUpdateDescription = async (req, res) => {
 
 const groupSettingUpdate = async (req, res) => {
     const session = getSession(res.locals.sessionId)
+
     try {
-        const jid = formatGroup(req.params.jid)
-        const settings = req?.body?.settings
+        const jid = await resolveGroup(req, res, session)
 
-        const exists = await isExists(session, jid, true)
-
-        if (!exists) {
-            return response(res, 400, false, 'The group is not exists.')
+        if (!jid) {
+            return
         }
 
-        await settingUpdate(session, jid, settings)
+        await updateGroupSetting(session, jid, req.body.settings)
 
         response(res, 200, true, 'Update setting successfully.')
     } catch {
@@ -163,15 +176,15 @@ const groupSettingUpdate = async (req, res) => {
 
 const groupLeave = async (req, res) => {
     const session = getSession(res.locals.sessionId)
-    try {
-        const jid = formatGroup(req.params.jid)
-        const exists = await isExists(session, jid, true)
 
-        if (!exists) {
-            return response(res, 400, false, 'The group is not exists.')
+    try {
+        const jid = await resolveGroup(req, res, session)
+
+        if (!jid) {
+            return
         }
 
-        await leave(session, jid)
+        await leaveGroup(session, jid)
 
         response(res, 200, true, 'Leave group successfully.')
     } catch {
@@ -181,17 +194,17 @@ const groupLeave = async (req, res) => {
 
 const groupInviteCode = async (req, res) => {
     const session = getSession(res.locals.sessionId)
-    try {
-        const jid = formatGroup(req.params.jid)
-        const exists = await isExists(session, jid, true)
 
-        if (!exists) {
-            return response(res, 400, false, 'The group is not exists.')
+    try {
+        const jid = await resolveGroup(req, res, session)
+
+        if (!jid) {
+            return
         }
 
-        const group = await inviteCode(session, jid)
+        const code = await getGroupInviteCode(session, jid)
 
-        response(res, 200, true, 'Invite code successfully.', group)
+        response(res, 200, true, 'Invite code successfully.', code)
     } catch {
         response(res, 500, false, 'Failed invite code.')
     }
@@ -199,8 +212,9 @@ const groupInviteCode = async (req, res) => {
 
 const groupAcceptInvite = async (req, res) => {
     const session = getSession(res.locals.sessionId)
+
     try {
-        const group = await acceptInvite(session, req.body)
+        const group = await acceptGroupInvite(session, req.body.invite)
 
         response(res, 200, true, 'Accept invite successfully.', group)
     } catch {
@@ -210,18 +224,17 @@ const groupAcceptInvite = async (req, res) => {
 
 const groupRevokeInvite = async (req, res) => {
     const session = getSession(res.locals.sessionId)
+
     try {
-        const jid = formatGroup(req.params.jid)
+        const jid = await resolveGroup(req, res, session)
 
-        const exists = await isExists(session, jid, true)
-
-        if (!exists) {
-            return response(res, 400, false, 'The group is not exists.')
+        if (!jid) {
+            return
         }
 
-        const group = await revokeInvite(session, jid)
+        const code = await revokeGroupInvite(session, jid)
 
-        response(res, 200, true, 'Revoke code successfully.', group)
+        response(res, 200, true, 'Revoke code successfully.', code)
     } catch {
         response(res, 500, false, 'Failed rovoke code.')
     }
@@ -229,16 +242,16 @@ const groupRevokeInvite = async (req, res) => {
 
 const updateProfilePicture = async (req, res) => {
     const session = getSession(res.locals.sessionId)
-    try {
-        const jid = formatGroup(req.params.jid)
-        const { url } = req.body
-        const exists = await isExists(session, jid, true)
 
-        if (!exists) {
-            return response(res, 400, false, 'The group is not exists.')
+    try {
+        const jid = await resolveGroup(req, res, session)
+
+        if (!jid) {
+            return
         }
 
-        await profilePicture(session, jid, url)
+        await updateProfilePictureFromUrl(session, jid, req.body.url)
+
         response(res, 200, true, 'Update profile picture successfully.')
     } catch {
         response(res, 500, false, 'Failed Update profile picture.')
@@ -258,6 +271,6 @@ export {
     groupInviteCode,
     groupAcceptInvite,
     groupRevokeInvite,
-    getListWithoutParticipants,
+    getParticipatingGroupsList,
     updateProfilePicture,
 }

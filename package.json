@@ -1,39 +1,47 @@
 {
-    "name": "baileys-api",
-    "description": "Simple RESTful WhatsApp API",
-    "private": true,
-    "main": "app.js",
-    "type": "module",
-    "scripts": {
-        "start": "node ."
-    },
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/ookamiiixd/baileys-api.git"
-    },
-    "author": "ookamiiixd <ookamiiixd@gmail.com>",
-    "bugs": {
-        "url": "https://github.com/ookamiiixd/baileys-api/issues"
-    },
-    "homepage": "https://github.com/ookamiiixd/baileys-api#readme",
-    "engines": {
-        "node": ">=18.16.0"
-    },
-    "dependencies": {
-        "baileys": "7.0.0-rc.6",
-        "axios": "^1.13.2",
-        "cors": "^2.8.5",
-        "dotenv": "^17.2.3",
-        "express": "^5.1.0",
-        "express-validator": "^7.3.0",
-        "node-cache": "^5.1.2",
-        "node-cleanup": "^2.1.2",
-        "pino": "^10.1.0",
-        "qrcode": "^1.5.4"
-    },
-    "devDependencies": {
-        "eslint": "^9.39.1",
-        "eslint-plugin-prettier": "^5.5.4",
-        "prettier": "^3.6.2"
-    }
+  "name": "baileys-api",
+  "description": "Simple RESTful WhatsApp API",
+  "private": true,
+  "main": "app.js",
+  "type": "module",
+  "scripts": {
+    "start": "node .",
+    "test": "node tests/memory-store.test.mjs",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ookamiiixd/baileys-api.git"
+  },
+  "author": "ookamiiixd <ookamiiixd@gmail.com>",
+  "bugs": {
+    "url": "https://github.com/ookamiiixd/baileys-api/issues"
+  },
+  "homepage": "https://github.com/ookamiiixd/baileys-api#readme",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@innovatorssoft/baileys": "^7.4.7",
+    "axios": "^1.13.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "express-validator": "^7.3.0",
+    "node-cache": "^5.1.2",
+    "node-cleanup": "^2.1.2",
+    "pino": "^10.1.0",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
+    "globals": "^16.5.0",
+    "prettier": "^3.6.2"
+  }
 }

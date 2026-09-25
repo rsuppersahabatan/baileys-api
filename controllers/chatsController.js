@@ -1,49 +1,39 @@
+import response from '../response.js'
+import { validateMediaUrl } from '../utils/functions.js'
 import {
-    getSession,
+    getStoredMessage,
     getChatList,
-    isExists,
+    isJidExists,
+    readMessages,
     sendMessage,
-    formatPhone,
-    formatGroup,
-    readMessage,
-    getMessageMedia,
-    getStoreMessage,
-} from './../whatsapp.js'
-import response from './../response.js'
-import { compareAndFilter, fileExists, isUrlValid } from './../utils/functions.js'
+    sendPresenceUpdate,
+} from '../whatsapp/actions.js'
+import { toJid } from '../whatsapp/jid.js'
+import { downloadMessageMedia } from '../whatsapp/media.js'
+import { getSession } from '../whatsapp/registry.js'
+
+/** Message keys the API accepts a `url` for. */
+const MEDIA_MESSAGE_TYPES = ['image', 'video', 'audio', 'document', 'sticker']
 
 const getList = (req, res) => {
-    return response(res, 200, true, '', getChatList(res.locals.sessionId))
+    return response(res, 200, true, '', getChatList(getSession(res.locals.sessionId)))
 }
 
 const send = async (req, res) => {
     const session = getSession(res.locals.sessionId)
     const { message } = req.body
     const isGroup = req.body.isGroup ?? false
-    const receiver = isGroup ? formatGroup(req.body.receiver) : formatPhone(req.body.receiver)
+    const receiver = toJid(req.body.receiver, isGroup)
 
-    const typesMessage = ['image', 'video', 'audio', 'document', 'sticker']
-
-    const filterTypeMessaje = compareAndFilter(Object.keys(message), typesMessage)
     try {
-        const exists = await isExists(session, receiver, isGroup)
-
-        if (!exists) {
+        if (!(await isJidExists(session, receiver, isGroup))) {
             return response(res, 400, false, 'The receiver number is not exists.')
         }
 
-        if (filterTypeMessaje.length > 0) {
-            const url = message[filterTypeMessaje]?.url
+        const invalidMedia = validateMediaUrl(message, MEDIA_MESSAGE_TYPES)
 
-            if (url.length === undefined || url.length === 0) {
-                return response(res, 400, false, 'The URL is invalid or empty.')
-            }
-
-            if (!isUrlValid(url)) {
-                if (!fileExists(url)) {
-                    return response(res, 400, false, 'The file or url does not exist.')
-                }
-            }
+        if (invalidMedia) {
+            return response(res, 400, false, invalidMedia)
         }
 
         await sendMessage(session, receiver, message, {}, 0)
@@ -56,33 +46,34 @@ const send = async (req, res) => {
 
 const sendBulk = async (req, res) => {
     const session = getSession(res.locals.sessionId)
+    const recipients = req.body
+
+    if (!Array.isArray(recipients) || recipients.length === 0) {
+        return response(res, 400, false, 'The message list is empty.')
+    }
+
     const errors = []
 
-    for (const [key, data] of req.body.entries()) {
-        let { receiver, message, delay } = data
+    for (const [index, entry] of recipients.entries()) {
+        const { message } = entry
 
-        if (!receiver || !message) {
-            errors.push({ key, message: 'The receiver number is not exists.' })
+        if (!entry.receiver || !message) {
+            errors.push({ key: index, message: 'The receiver number is not exists.' })
             continue
         }
 
-        if (!delay || isNaN(delay)) {
-            delay = 1000
-        }
-
-        receiver = formatPhone(receiver)
+        const delay = !entry.delay || Number.isNaN(Number(entry.delay)) ? 1000 : entry.delay
+        const receiver = toJid(entry.receiver)
 
         try {
-            const exists = await isExists(session, receiver)
-
-            if (!exists) {
-                errors.push({ key, message: 'number not exists on whatsapp' })
+            if (!(await isJidExists(session, receiver))) {
+                errors.push({ key: index, message: 'number not exists on whatsapp' })
                 continue
             }
 
             await sendMessage(session, receiver, message, {}, delay)
-        } catch (err) {
-            errors.push({ key, message: err.message })
+        } catch (error) {
+            errors.push({ key: index, message: error.message })
         }
     }
 
@@ -90,13 +81,13 @@ const sendBulk = async (req, res) => {
         return response(res, 200, true, 'All messages has been successfully sent.')
     }
 
-    const isAllFailed = errors.length === req.body.length
+    const allFailed = errors.length === recipients.length
 
     response(
         res,
-        isAllFailed ? 500 : 200,
-        !isAllFailed,
-        isAllFailed ? 'Failed to send all messages.' : 'Some messages has been successfully sent.',
+        allFailed ? 500 : 200,
+        !allFailed,
+        allFailed ? 'Failed to send all messages.' : 'Some messages has been successfully sent.',
         { errors },
     )
 }
@@ -106,9 +97,8 @@ const deleteChat = async (req, res) => {
     const { receiver, isGroup, message } = req.body
 
     try {
-        const jidFormat = isGroup ? formatGroup(receiver) : formatPhone(receiver)
+        await sendMessage(session, toJid(receiver, isGroup), { delete: message })
 
-        await sendMessage(session, jidFormat, { delete: message })
         response(res, 200, true, 'Message has been successfully deleted.')
     } catch {
         response(res, 500, false, 'Failed to delete message .')
@@ -117,24 +107,17 @@ const deleteChat = async (req, res) => {
 
 const forward = async (req, res) => {
     const session = getSession(res.locals.sessionId)
-    const { forward, receiver, isGroup } = req.body
-
-    const { id, remoteJid } = forward
-    const jidFormat = isGroup ? formatGroup(receiver) : formatPhone(receiver)
+    const { forward: source, receiver, isGroup } = req.body
+    const { id, remoteJid } = source
 
     try {
-        const messages = await session.store.loadMessages(remoteJid, 25, null)
+        const message = getStoredMessage(session, remoteJid, id)
 
-        
-        const key = [...messages.values()].filter((element) => {
-            return element.key.id === id
-        })
-
-        const queryForward = {
-            forward: key[0],
+        if (!message) {
+            return response(res, 404, false, 'The message to forward was not found.')
         }
 
-        await sendMessage(session, jidFormat, queryForward, {}, 0)
+        await sendMessage(session, toJid(receiver, isGroup), { forward: message }, {}, 0)
 
         response(res, 200, true, 'The message has been successfully forwarded.')
     } catch {
@@ -146,12 +129,12 @@ const read = async (req, res) => {
     const session = getSession(res.locals.sessionId)
     const { keys } = req.body
 
-    try {
-        await readMessage(session, keys)
+    if (!keys?.[0]?.id) {
+        return response(res, 400, false, 'Data not found')
+    }
 
-        if (!keys[0].id) {
-            throw new Error('Data not found')
-        }
+    try {
+        await readMessages(session, keys)
 
         response(res, 200, true, 'The message has been successfully marked as read.')
     } catch {
@@ -164,9 +147,7 @@ const sendPresence = async (req, res) => {
     const { receiver, isGroup, presence } = req.body
 
     try {
-        const jidFormat = isGroup ? formatGroup(receiver) : formatPhone(receiver)
-
-        await session.sendPresenceUpdate(presence, jidFormat)
+        await sendPresenceUpdate(session, presence, toJid(receiver, isGroup))
 
         response(res, 200, true, 'Presence has been successfully sent.')
     } catch {
@@ -179,10 +160,15 @@ const downloadMedia = async (req, res) => {
     const { remoteJid, messageId } = req.body
 
     try {
-        const message = await getStoreMessage(session, messageId, remoteJid)
-        const dataMessage = await getMessageMedia(session, message)
+        const message = getStoredMessage(session, remoteJid, messageId)
 
-        response(res, 200, true, 'Message downloaded successfully', dataMessage)
+        if (!message) {
+            return response(res, 404, false, 'The message was not found.')
+        }
+
+        const media = await downloadMessageMedia(session, message)
+
+        response(res, 200, true, 'Message downloaded successfully', media)
     } catch {
         response(
             res,
@@ -193,4 +179,35 @@ const downloadMedia = async (req, res) => {
     }
 }
 
-export { getList, send, sendBulk, deleteChat, read, forward, sendPresence, downloadMedia }
+/**
+ * Conversation history of a chat, newest first.
+ *
+ * `cursorId` pages backwards from a known message id, which is the only cursor
+ * the store can resolve reliably.
+ *
+ * @param {boolean} defaultIsGroup used by the group routes, where the jid is
+ *   always a group even though the query string does not say so.
+ */
+const getMessages =
+    (defaultIsGroup = false) =>
+    async (req, res) => {
+        const session = getSession(res.locals.sessionId)
+        const { jid } = req.params
+        const { limit = 25, cursorId = null, cursorFromMe = null } = req.query
+        const isGroup = req.query.isGroup === undefined ? defaultIsGroup : req.query.isGroup === 'true'
+
+        const cursor = cursorId ? { before: { id: cursorId, fromMe: cursorFromMe === 'true' } } : {}
+
+        try {
+            const messages = await session.store.loadMessages(toJid(jid, isGroup), {
+                limit: Number.parseInt(limit, 10) || 25,
+                ...cursor,
+            })
+
+            response(res, 200, true, '', messages)
+        } catch {
+            response(res, 500, false, 'Failed to load messages.')
+        }
+    }
+
+export { getList, send, sendBulk, deleteChat, read, forward, sendPresence, downloadMedia, getMessages }

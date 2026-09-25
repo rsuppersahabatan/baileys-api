@@ -1,24 +1,34 @@
-import { createWriteStream } from 'fs'
+import { mkdir, unlink, writeFile } from 'fs/promises'
+import { tmpdir } from 'os'
+import { join } from 'path'
 import axios from 'axios'
 
-const downloadImage = async (url) => {
-    const name = Math.floor(Date.now() / 1000)
-    const filepath = './uploads/profile/' + name + '.jpg'
+/**
+ * Downloads land in the OS temp directory rather than the project directory:
+ * they only exist to be handed to Baileys, and the previous `./uploads/profile`
+ * path was never created, so every profile picture update failed silently.
+ */
+const UPLOAD_DIR = join(tmpdir(), 'baileys-api-uploads')
 
-    const response = await axios({
-        url,
-        method: 'GET',
-        responseType: 'stream',
-    })
+/** Download `url` into a temporary file and return its path. */
+const downloadToTempFile = async (url, extension = 'jpg') => {
+    await mkdir(UPLOAD_DIR, { recursive: true })
 
-    return new Promise((resolve, reject) => {
-        response.data
-            .pipe(createWriteStream(filepath))
-            .on('érror', reject)
-            .once('close', () => {
-                resolve(filepath)
-            })
-    })
+    const filePath = join(UPLOAD_DIR, `${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`)
+    const { data } = await axios.get(url, { responseType: 'arraybuffer' })
+
+    await writeFile(filePath, Buffer.from(data))
+
+    return filePath
 }
 
-export { downloadImage }
+/** Best-effort removal — a leftover temp file is not worth failing a request over. */
+const removeFile = async (filePath) => {
+    try {
+        await unlink(filePath)
+    } catch {
+        // Already gone.
+    }
+}
+
+export { downloadToTempFile, removeFile }

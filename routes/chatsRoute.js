@@ -1,15 +1,14 @@
 import { Router } from 'express'
 import { body, query } from 'express-validator'
+import * as controller from './../controllers/chatsController.js'
 import requestValidator from './../middlewares/requestValidator.js'
 import sessionValidator from './../middlewares/sessionValidator.js'
-import * as controller from './../controllers/chatsController.js'
-import getMessages from './../controllers/getMessages.js'
 
 const router = Router()
 
 router.get('/', query('id').notEmpty(), requestValidator, sessionValidator, controller.getList)
 
-router.get('/:jid', query('id').notEmpty(), requestValidator, sessionValidator, getMessages)
+router.get('/:jid', query('id').notEmpty(), requestValidator, sessionValidator, controller.getMessages())
 
 router.post(
     '/delete',
@@ -18,7 +17,7 @@ router.post(
     body('message').notEmpty(),
     requestValidator,
     sessionValidator,
-    controller.deleteChat
+    controller.deleteChat,
 )
 
 router.post(
@@ -28,7 +27,7 @@ router.post(
     body('message').notEmpty(),
     requestValidator,
     sessionValidator,
-    controller.send
+    controller.send,
 )
 
 router.post('/send-bulk', query('id').notEmpty(), requestValidator, sessionValidator, controller.sendBulk)
@@ -41,7 +40,7 @@ router.post(
     body('isGroup').notEmpty(),
     requestValidator,
     sessionValidator,
-    controller.forward
+    controller.forward,
 )
 
 router.post(
@@ -50,7 +49,7 @@ router.post(
     body('keys').notEmpty(),
     requestValidator,
     sessionValidator,
-    controller.read
+    controller.read,
 )
 
 router.post(
@@ -60,7 +59,7 @@ router.post(
     body('presence').notEmpty(),
     requestValidator,
     sessionValidator,
-    controller.sendPresence
+    controller.sendPresence,
 )
 
 router.post(
@@ -70,7 +69,7 @@ router.post(
     body('messageId').notEmpty(),
     requestValidator,
     sessionValidator,
-    controller.downloadMedia
+    controller.downloadMedia,
 )
 
 export default router

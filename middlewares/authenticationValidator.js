@@ -1,13 +1,14 @@
 import response from './../response.js'
+import { config } from './../config.js'
 
 const validate = (req, res, next) => {
-    const apiKey = req.get('apikey') ?? req.query.apikey
-
-    if (!process.env.AUTHENTICATION_GLOBAL_AUTH_TOKEN) {
+    if (!config.authToken) {
         return next()
     }
 
-    if (apiKey !== process.env.AUTHENTICATION_GLOBAL_AUTH_TOKEN) {
+    const apiKey = req.get('apikey') ?? req.query.apikey
+
+    if (apiKey !== config.authToken) {
         return response(res, 401, false, 'Authentication failed.')
     }
 

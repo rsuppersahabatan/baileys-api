@@ -1,1 +1,7 @@
 sessions/
+
+# Vendored GitHub template, contains YAML prettier cannot parse.
+.github/
+
+# Exported Postman artifacts, reformatting them only creates noise.
+*postman_collection.json

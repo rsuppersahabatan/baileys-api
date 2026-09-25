@@ -1,9 +1,9 @@
 import { Router } from 'express'
 import { body, query } from 'express-validator'
+import { getMessages } from './../controllers/chatsController.js'
+import * as controller from './../controllers/groupsController.js'
 import requestValidator from './../middlewares/requestValidator.js'
 import sessionValidator from './../middlewares/sessionValidator.js'
-import * as controller from './../controllers/groupsController.js'
-import getMessages from './../controllers/getMessages.js'
 
 const router = Router()
 
@@ -16,7 +16,7 @@ router.post(
     body('participants').notEmpty(),
     requestValidator,
     sessionValidator,
-    controller.create
+    controller.create,
 )
 
 router.post(
@@ -26,10 +26,11 @@ router.post(
     body('message').notEmpty(),
     requestValidator,
     sessionValidator,
-    controller.send
+    controller.send,
 )
 
-router.get('/:jid', query('id').notEmpty(), requestValidator, sessionValidator, getMessages)
+// The jid of this route is always a group, so the controller is told explicitly.
+router.get('/:jid', query('id').notEmpty(), requestValidator, sessionValidator, getMessages(true))
 
 router.get('/meta/:jid', query('id').notEmpty(), requestValidator, sessionValidator, controller.getGroupMetaData)
 
@@ -40,7 +41,7 @@ router.post(
     body('participants').notEmpty(),
     requestValidator,
     sessionValidator,
-    controller.groupParticipantsUpdate
+    controller.groupParticipantsUpdate,
 )
 
 router.post(
@@ -49,7 +50,7 @@ router.post(
     body('subject').notEmpty(),
     requestValidator,
     sessionValidator,
-    controller.groupUpdateSubject
+    controller.groupUpdateSubject,
 )
 
 router.post(
@@ -58,7 +59,7 @@ router.post(
     body('description').notEmpty(),
     requestValidator,
     sessionValidator,
-    controller.groupUpdateDescription
+    controller.groupUpdateDescription,
 )
 
 router.post(
@@ -67,7 +68,7 @@ router.post(
     body('settings').notEmpty(),
     requestValidator,
     sessionValidator,
-    controller.groupSettingUpdate
+    controller.groupSettingUpdate,
 )
 
 router.post('/leave/:jid', query('id').notEmpty(), requestValidator, sessionValidator, controller.groupLeave)
@@ -80,7 +81,7 @@ router.post(
     body('invite').notEmpty(),
     requestValidator,
     sessionValidator,
-    controller.groupAcceptInvite
+    controller.groupAcceptInvite,
 )
 
 router.post(
@@ -88,7 +89,7 @@ router.post(
     query('id').notEmpty(),
     requestValidator,
     sessionValidator,
-    controller.groupRevokeInvite
+    controller.groupRevokeInvite,
 )
 
 router.post(
@@ -97,7 +98,7 @@ router.post(
     body('url').notEmpty(),
     requestValidator,
     sessionValidator,
-    controller.updateProfilePicture
+    controller.updateProfilePicture,
 )
 
 router.post(
@@ -105,7 +106,7 @@ router.post(
     query('id').notEmpty(),
     requestValidator,
     sessionValidator,
-    controller.getListWithoutParticipants
+    controller.getParticipatingGroupsList,
 )
 
 export default router

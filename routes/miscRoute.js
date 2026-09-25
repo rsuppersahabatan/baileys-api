@@ -1,8 +1,8 @@
 import { Router } from 'express'
 import { body, query } from 'express-validator'
+import * as controller from './../controllers/miscController.js'
 import requestValidator from './../middlewares/requestValidator.js'
 import sessionValidator from './../middlewares/sessionValidator.js'
-import * as controller from './../controllers/miscControlls.js'
 
 const router = Router()
 
@@ -14,6 +14,7 @@ router.post(
     sessionValidator,
     controller.setProfileStatus,
 )
+
 router.post(
     '/update-profile-name',
     query('id').notEmpty(),
@@ -22,6 +23,7 @@ router.post(
     sessionValidator,
     controller.setProfileName,
 )
+
 router.post('/my-profile', query('id').notEmpty(), requestValidator, sessionValidator, controller.getProfile)
 
 router.post(
