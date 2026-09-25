@@ -42,6 +42,13 @@ export const config = {
     maxRetries: toInt(process.env.MAX_RETRIES, -1),
     reconnectInterval: toInt(process.env.RECONNECT_INTERVAL, 5000),
     sessionPrefix: SESSION_PREFIX,
+    /**
+     * Baileys' `generateHighQualityLinkPreview`. Kept behind a flag because it
+     * makes the server fetch every link it sees in an incoming message, and the
+     * `link-preview-js` release it ships with has an unfixed SSRF advisory.
+     * Turn it off when this API is reachable by untrusted callers.
+     */
+    linkPreview: toBool(process.env.GENERATE_HIGH_QUALITY_LINK_PREVIEW, true),
     webhook: {
         url: process.env.APP_WEBHOOK_URL || null,
         allowedEvents: toList(process.env.APP_WEBHOOK_ALLOWED_EVENTS),

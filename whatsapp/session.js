@@ -65,7 +65,7 @@ const buildSocket = async (sessionId) => {
         },
         logger,
         msgRetryCounterCache,
-        generateHighQualityLinkPreview: true,
+        generateHighQualityLinkPreview: config.linkPreview,
         getMessage: (key) => getStoredMessageContent(store, key),
     })
 
@@ -92,26 +92,74 @@ const requestPairingCode = async (socket, res, phoneNumber) => {
     respond(res, 200, true, 'Verify on your phone and enter the provided code.', { code })
 }
 
-const handleQr = async ({ socket, sessionId, res, update }) => {
-    await notify(sessionId, 'QRCODE_UPDATED', update)
+/**
+ * Can this QR still be handed to whoever asked for a session?
+ *
+ * `POST /sessions/add` answers exactly once, so the only chance to deliver a QR
+ * is while that request is still open. Once it has been answered there is no
+ * channel left: WhatsApp rotates the QR about once a minute, and a rotated
+ * code can only be shown to a client that is still waiting for one.
+ *
+ * `false` therefore means the login attempt is dead — either the first QR was
+ * shown and never scanned before it rotated, or the session was recovered at
+ * boot and nobody ever asked for a QR.
+ */
+export const canDeliverQr = (res) => Boolean(res) && !res.headersSent
 
-    if (res && !res.headersSent) {
-        try {
-            const qrcode = await toDataURL(update.qr)
-
-            respond(res, 200, true, 'QR code received, please scan the QR code.', { qrcode })
-
-            return
-        } catch {
-            respond(res, 500, false, 'Unable to create QR code.')
-        }
+/**
+ * Decide what to do with a QR that WhatsApp just emitted.
+ *
+ * - `ignore` — a pairing-code session is not waiting for a QR at all, so a
+ *   rotation says nothing about whether the login is still alive.
+ * - `deliver` — a request is still open, so hand this QR to it.
+ * - `drop` — nobody can receive this QR any more, so the login attempt is dead.
+ */
+export const qrOutcome = ({ expectsQr, res }) => {
+    if (!expectsQr) {
+        return 'ignore'
     }
 
-    // Nobody is waiting for this QR: the request that asked for it has already
-    // been answered (the code was shown but never scanned) or the session was
-    // recovered at boot. Either way this login attempt is dead, so drop it.
+    return canDeliverQr(res) ? 'deliver' : 'drop'
+}
+
+/**
+ * Drop a session whose QR nobody could receive any more.
+ *
+ * Leaving it registered would be worse than deleting it: the client keeps
+ * showing a QR that WhatsApp has already invalidated, and `/sessions/status`
+ * would keep reporting a session that can never finish logging in.
+ */
+const abandonUnscannedSession = async ({ socket, sessionId }) => {
+    console.log(`Session "${sessionId}" was not scanned before its QR rotated, dropping it.`)
+
     await quietly(() => socket.logout())
     await deleteSession(sessionId)
+}
+
+const handleQr = async ({ socket, sessionId, res, expectsQr, update }) => {
+    const outcome = qrOutcome({ expectsQr, res })
+
+    if (outcome === 'ignore') {
+        return
+    }
+
+    if (outcome === 'drop') {
+        return abandonUnscannedSession({ socket, sessionId })
+    }
+
+    await notify(sessionId, 'QRCODE_UPDATED', update)
+
+    try {
+        const qrcode = await toDataURL(update.qr)
+
+        respond(res, 200, true, 'QR code received, please scan the QR code.', { qrcode })
+    } catch {
+        // Encoding failed, so this QR is unusable too — the caller must not be
+        // left waiting, and the session has nothing left to show.
+        respond(res, 500, false, 'Unable to create QR code.')
+
+        await abandonUnscannedSession({ socket, sessionId })
+    }
 }
 
 const handleDisconnect = async ({ sessionId, res, statusCode }) => {
@@ -134,7 +182,7 @@ const handleDisconnect = async ({ sessionId, res, statusCode }) => {
     }, wait)
 }
 
-const handleConnectionUpdate = async ({ socket, sessionId, res, update }) => {
+const handleConnectionUpdate = async ({ socket, sessionId, res, expectsQr, update }) => {
     const { connection, lastDisconnect, qr } = update
 
     await notify(sessionId, 'CONNECTION_UPDATE', update)
@@ -154,7 +202,7 @@ const handleConnectionUpdate = async ({ socket, sessionId, res, update }) => {
     }
 
     if (qr) {
-        return handleQr({ socket, sessionId, res, update })
+        return handleQr({ socket, sessionId, res, expectsQr, update })
     }
 }
 
@@ -178,12 +226,18 @@ export const createSession = async (sessionId, { res = null, usePairingCode = fa
         await requestPairingCode(socket, res, phoneNumber)
     }
 
+    // A pairing-code session is never shown a QR, so its QR rotations must not
+    // be mistaken for an unscanned login. A reconnect keeps the QR rules, which
+    // is deliberate: a dropped pairing connection leaves the issued code stale,
+    // so the session is better off being cleaned up.
+    const expectsQr = !usePairingCode
+
     registerEventHandlers({
         socket,
         sessionId,
         saveCreds,
         getMessage: (key) => getStoredMessageContent(socket.store, key),
-        onConnectionUpdate: (update) => handleConnectionUpdate({ socket, sessionId, res, update }),
+        onConnectionUpdate: (update) => handleConnectionUpdate({ socket, sessionId, res, expectsQr, update }),
     })
 }
 
