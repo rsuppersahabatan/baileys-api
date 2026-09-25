@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node .",
-    "test": "node tests/memory-store.test.mjs && node tests/session-qr.test.mjs && node tests/libsignal-protobuf.test.mjs && node tests/scheduler.test.mjs",
+    "test": "node tests/memory-store.test.mjs && node tests/session-qr.test.mjs && node tests/libsignal-protobuf.test.mjs && node tests/scheduler.test.mjs && node tests/contacts.test.mjs && node tests/typing.test.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",

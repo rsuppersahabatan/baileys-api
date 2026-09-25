@@ -6,6 +6,7 @@ import {
     isJidExists,
     readMessages,
     sendMessage,
+    sendMessageWithTyping,
     sendPresenceUpdate,
 } from '../whatsapp/actions.js'
 import { toJid } from '../whatsapp/jid.js'
@@ -36,7 +37,7 @@ const send = async (req, res) => {
             return response(res, 400, false, invalidMedia)
         }
 
-        await sendMessage(session, receiver, message, {}, 0)
+        await sendMessageWithTyping(session, receiver, message, { typing: req.body.typing }, 0)
 
         response(res, 200, true, 'The message has been successfully sent.')
     } catch {
@@ -71,7 +72,7 @@ const sendBulk = async (req, res) => {
                 continue
             }
 
-            await sendMessage(session, receiver, message, {}, delay)
+            await sendMessageWithTyping(session, receiver, message, { typing: entry.typing }, delay)
         } catch (error) {
             errors.push({ key: index, message: error.message })
         }

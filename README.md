@@ -33,8 +33,9 @@ whatsapp/
   webhook.js            webhook delivery and event filtering
   actions.js            the only module that calls baileys
   scheduler.js          queued messages, their timer and their JSON file
+  typing.js             typing-indicator timing arithmetic
   media.js              media download and base64 helpers
-  jid.js                phone / group JID normalisation
+  jid.js                phone / group / LID JID normalisation
   registry.js           live sessions and reconnect bookkeeping
 store/                  in-memory message store with a JSON file on disk
 tests/                  dependency-free regression checks
@@ -89,14 +90,14 @@ Also check out the `examples` directory for the basic usage examples.
 
 ## Scripts
 
-| Command                | What it does                                                   |
-| ---------------------- | -------------------------------------------------------------- |
-| `npm start`            | Run the API                                                    |
-| `npm test`             | Store, QR-lifecycle, libsignal and scheduler checks (98 total) |
-| `npm run lint`         | ESLint (flat config)                                           |
-| `npm run lint:fix`     | ESLint with `--fix`                                            |
-| `npm run format`       | Prettier write                                                 |
-| `npm run format:check` | Prettier check                                                 |
+| Command                | What it does                                                               |
+| ---------------------- | -------------------------------------------------------------------------- |
+| `npm start`            | Run the API                                                                |
+| `npm test`             | Store, QR-lifecycle, libsignal, scheduler, contacts and typing (230 total) |
+| `npm run lint`         | ESLint (flat config)                                                       |
+| `npm run lint:fix`     | ESLint with `--fix`                                                        |
+| `npm run format`       | Prettier write                                                             |
+| `npm run format:check` | Prettier check                                                             |
 
 ## API Docs
 
@@ -217,7 +218,9 @@ curl -X POST "http://localhost:8000/scheduler?id=my-session" \
 
 `message` is passed to Baileys untouched, so anything `POST /chats/send` accepts
 works here too — text, image with a `url`, document, and so on. `isGroup: true`
-switches `receiver` to group JID handling.
+switches `receiver` to group JID handling, and `typing` works exactly as it does
+on `/chats/send`, so a queued message can arrive with a typing indicator before
+it.
 
 `scheduledAt` accepts an epoch millisecond number, a numeric string, or an ISO
 8601 date string. It must be in the future; a past timestamp is rejected with
@@ -235,8 +238,11 @@ The response is the job itself, with `201`:
         "receiver": "628123456789",
         "jid": "628123456789@s.whatsapp.net",
         "message": { "text": "selamat pagi" },
+        "typing": false,
         "scheduledAt": 1790311257000,
         "runAt": 1790311257000,
+        "repeat": null,
+        "runs": 0,
         "status": "pending",
         "attempts": 0
     }
@@ -248,13 +254,14 @@ They differ once a job has been retried.
 
 ### Job statuses
 
-| Status      | Meaning                                                              |
-| ----------- | -------------------------------------------------------------------- |
-| `pending`   | Waiting, or waiting to retry                                         |
-| `sent`      | Handed to WhatsApp; `messageId` and `sentAt` are filled in           |
-| `failed`    | Every attempt failed; `lastError` says why                           |
-| `cancelled` | Cancelled before it ran                                              |
-| `missed`    | Its time passed while the process was down for longer than the grace |
+| Status      | Meaning                                                                 |
+| ----------- | ----------------------------------------------------------------------- |
+| `pending`   | Waiting, waiting to retry, or an unfinished series waiting for its slot |
+| `sent`      | A one-off handed to WhatsApp; `messageId` and `sentAt` are filled in    |
+| `completed` | A repeating job that ran its full `count`, or passed its `until`        |
+| `failed`    | Every attempt failed; `lastError` says why                              |
+| `cancelled` | Cancelled before it ran                                                 |
+| `missed`    | A one-off whose time passed while the process was down past the grace   |
 
 A failed attempt is retried up to `SCHEDULER_MAX_ATTEMPTS` times, waiting
 `SCHEDULER_RETRY_DELAY` between tries. Exhausting the budget marks the job
@@ -278,20 +285,227 @@ they belong to a session that no longer exists and could never be sent.
 
 ### It keeps working while WhatsApp is down
 
-`POST /scheduler` requires a live connection, because the receiver is checked
-against WhatsApp before the job is accepted. The other four routes only read or
-edit the queue, so they deliberately use a weaker session check and keep working
-while a session is reconnecting. That is the moment you are most likely to want
-to cancel something, and being locked out of your own queue because the socket
-dropped would be the wrong answer.
+`POST /scheduler` requires a live connection, because a job queued for a socket
+that cannot send only burns through its retry budget. The other four routes only
+read or edit the queue, so they deliberately use a weaker session check and keep
+working while a session is reconnecting. That is the moment you are most likely
+to want to cancel something, and being locked out of your own queue because the
+socket dropped would be the wrong answer.
 
 Sending still needs a live connection. A job that comes due while the session is
 disconnected fails, records `SESSION_NOT_CONNECTED` in `lastError`, and retries.
 
+Note that "live connection" here means the websocket is open, which is also true
+while a QR code is still waiting to be scanned. A job queued in that window is
+accepted, then fails with the real reason at send time.
+
+### Repeating messages
+
+Add `repeat` to send the same message over and over:
+
+```bash
+curl -X POST "http://localhost:8000/scheduler?id=my-session" \
+  -H 'Content-Type: application/json' \
+  -d '{
+        "receiver": "628123456789",
+        "message": { "text": "laporan harian" },
+        "scheduledAt": "2026-09-26T01:00:00.000Z",
+        "repeat": { "every": "daily", "count": 5 }
+      }'
+```
+
+`every` accepts `hourly` / `daily` / `weekly`, a duration string (`30s`, `15m`,
+`2h`, `1d`) or a number of milliseconds. Anything under 1000 ms is rejected as
+`REPEAT_INTERVAL_TOO_SMALL` — that is a loop, not a schedule. A bare string works
+as shorthand: `"repeat": "daily"` means the same as `{ "every": "daily" }`.
+
+Two optional limits sit alongside it:
+
+| Field   | Meaning                                                  |
+| ------- | -------------------------------------------------------- |
+| `count` | Total sends, the first one included. Omit for unlimited. |
+| `until` | Last time an occurrence may run. Omit for no end.        |
+
+`runs` on the job counts the occurrences actually delivered, so it is also the
+cursor into the series. A repeating job stays `pending` between sends and only
+becomes `completed` when `count` is used up or the next slot would fall past
+`until`.
+
+A few deliberate choices worth knowing about:
+
+- **The cadence is anchored to `scheduledAt`, not to the last send.** A slow send
+  or a retry does not push every later occurrence back, so a `daily` job keeps
+  running at the time you asked for.
+- **Occurrences missed while the process was down are skipped, not queued up.** A
+  week of downtime on a `daily` job resumes at the next slot instead of firing
+  seven messages at once.
+- **A missed series survives a restart.** Unlike a one-off, which is marked
+  `missed`, a repeating job is moved forward to its next slot and stays
+  `pending` — a daily reminder missed during an outage should still fire
+  tomorrow. Skipped slots do not consume the `count` budget.
+- **Rescheduling restarts the series.** `PUT /scheduler/update/:jobId` with a new
+  `scheduledAt` resets `runs` to `0`, so the new time becomes occurrence zero.
+- **A failed occurrence burns the job, not the series.** If every attempt for one
+  occurrence fails the job ends as `failed`; revive it with
+  `PUT /scheduler/update/:jobId`.
+
 ### Not included
 
-Recurring messages. Every job fires once; schedule the next one yourself, or
-reschedule a finished job with `PUT /scheduler/update/:jobId`.
+Cron expressions. `repeat` covers fixed intervals, which is what a message
+scheduler usually needs; for "every weekday at 09:00" you would compute the next
+`daily` anchor yourself.
+
+## Contact Lookups
+
+Check whether a phone number, LID or username exists on WhatsApp, and resolve
+between the three.
+
+### Endpoints
+
+| Method | Path                          | What it does                                 |
+| ------ | ----------------------------- | -------------------------------------------- |
+| `POST` | `/contacts/check?id=`         | Check any mix of numbers, LIDs and usernames |
+| `GET`  | `/contacts/username/:jid?id=` | The username of a JID, if it has one         |
+
+The JID is the path parameter `:jid`, never `:id`, because the session
+middlewares also read `req.params.id` — naming both `id` would make one silently
+shadow the other.
+
+### Checking
+
+```bash
+curl -X POST "http://localhost:8000/contacts/check?id=my-session" \
+  -H 'Content-Type: application/json' \
+  -d '{
+        "numbers": ["628123456789"],
+        "lids": ["111111111111111"],
+        "usernames": ["budi"]
+      }'
+```
+
+All three fields are optional, but at least one is required. Each is an array,
+and each is reported back separately:
+
+```json
+{
+    "success": true,
+    "message": "Checked 3 target(s), 3 exist on WhatsApp.",
+    "data": {
+        "numbers": [
+            {
+                "input": "628123456789",
+                "jid": "628123456789@s.whatsapp.net",
+                "exists": true,
+                "lid": "111111111111111@lid"
+            }
+        ],
+        "lids": [
+            {
+                "input": "111111111111111",
+                "jid": "628123456789@s.whatsapp.net",
+                "lid": "111111111111111@lid",
+                "exists": true
+            }
+        ],
+        "usernames": [{ "input": "budi", "jid": "628123456789@s.whatsapp.net", "exists": true, "contact": true }]
+    }
+}
+```
+
+They are kept apart rather than merged into one list because each answers a
+different question: a number lookup wants its LID back, a LID lookup wants the
+phone number behind it, and a username lookup wants the JID.
+
+A few details that matter in practice:
+
+- **`lid` is the only way to learn the number ↔ LID mapping.** LIDs are opaque
+  numbers, so nothing about them can be derived — they only ever come from
+  WhatsApp. A number that has no published LID reports `lid: null`; it still
+  exists.
+- **A LID lookup answers with the phone number in `jid`.** That is the reverse
+  mapping, and it is the reason the two lists are not merged: the same account
+  appears in both with the fields swapped.
+- **`contact` says whether the account is a saved contact** of the session, not
+  whether the username exists.
+- **Unknown values are reported, not dropped.** They come back with
+  `exists: false`, in the same order you sent them, so you can line the results
+  up with your input.
+- **Numbers are normalised.** `+62 811 111 1111` and `628111111111` resolve to
+  the same JID. A value with no digits at all is rejected with `400` rather than
+  quietly becoming `@s.whatsapp.net`, which could never match anything.
+- **Long lists are batched.** USync queries are sent 50 users at a time, because
+  a single query with hundreds is rejected by the server.
+
+### The session has to be logged in
+
+Both routes answer with `400 There is no connection with whatsapp at the moment`
+unless the session is actually logged in.
+
+This is stricter than the rest of the API on purpose. The standard session check
+only asks whether the websocket is open, which is also true while a QR code is
+still waiting to be scanned — baileys opens the socket before the login finishes.
+An unlogged socket does not fail fast either: it never answers the query, it just
+waits out the timeout. Measured on this codebase, that is **over 40 seconds of a
+client sitting on nothing** before the fix, versus an immediate `400` now.
+
+### Getting a username
+
+```bash
+curl "http://localhost:8000/contacts/username/628123456789@s.whatsapp.net?id=my-session"
+```
+
+```json
+{
+    "success": true,
+    "message": "The username has been obtained successfully.",
+    "data": { "jid": "628123456789@s.whatsapp.net", "username": "budi" }
+}
+```
+
+`username` is `null` for an account that has not set one. That is a `200`, not a
+`404` — "this account has no username" is an answer, not an error.
+
+## Typing Indicator
+
+`POST /chats/send`, `POST /chats/send-bulk` and `POST /scheduler` all accept a
+`typing` option. When set, the session shows "typing…" for a moment and clears it
+before the message is sent, so the recipient sees a pause rather than a message
+appearing out of nowhere.
+
+```bash
+curl -X POST "http://localhost:8000/chats/send?id=my-session" \
+  -H 'Content-Type: application/json' \
+  -d '{
+        "receiver": "628123456789",
+        "message": { "text": "halo, sebentar ya" },
+        "typing": true
+      }'
+```
+
+| Value                  | What happens                                            |
+| ---------------------- | ------------------------------------------------------- |
+| `true`                 | Derive a duration from the message text                 |
+| `1500`                 | Show it for 1500 ms                                     |
+| `{ "duration": 1500 }` | Same thing                                              |
+| `false`, `0`, `""`     | No indicator — the default, and what you get if omitted |
+
+The order on the wire is always the same: `composing`, wait, `paused`, then the
+message. Clearing it explicitly rather than letting WhatsApp time it out keeps
+the pause from bleeding into whatever is sent next.
+
+**Derived durations** scale with the length of the text, using
+`base + length × perCharacter`, clamped between `min` and `max`. The defaults
+are 400 ms, 45 ms per character, 700 ms and 6000 ms, so a one-word reply still
+reads as a pause rather than an instant flip. A caption counts as text, because a
+long caption is still typed. An explicit duration is clamped to 30 s.
+
+`0` is treated as "off" rather than "instant". An indicator cleared the moment it
+appears is a flicker, which is worse than not sending one at all.
+
+**The indicator is cosmetic, so it can never cost you the message.** If the
+socket refuses to send presence updates the send goes ahead anyway; if the socket
+is genuinely broken the send fails on its own and reports the real reason. Only
+`sendTypingIndicator` used directly, on its own, surfaces a presence failure.
 
 ## Available Features
 
@@ -319,6 +533,7 @@ At this moment we are working to bring more functionalities
     * Send Presence Update
     * Read Message
     * Send  Bulk Message
+    * Send with Typing Indicator
     * Send Message Types
         => Send Message Text
         => Send Message Image
@@ -348,9 +563,15 @@ At this moment we are working to bring more functionalities
     * Group Update Picture
     * Group List Without Participants
 
+### Contacts
+
+    * Check Numbers, LIDs and Usernames on WhatsApp
+    * Get the Username of a JID
+
 ### Scheduler
 
     * Schedule Message
+    * Schedule Repeating Message
     * List Scheduled Messages
     * Find Scheduled Message
     * Update / Reschedule Message
@@ -470,6 +691,7 @@ than traded for silent breakage in audio handling.
 - `QRCODE_UPDATED` is only sent to the webhook while a session creation request is still waiting for a QR, since the session is dropped as soon as a QR can no longer be delivered.
 - **An unscanned QR expires and takes the session with it.** See [Session Lifecycle](#session-lifecycle) for the full rules and what your UI should do about it.
 - Scheduled messages live in one file, `sessions/scheduler.json`, rather than one per session. See [Message Scheduler](#message-scheduler) for the retry and restart rules.
+- The standard session check asks whether the websocket is open, not whether the account is logged in — baileys opens the socket before the login finishes. Endpoints that genuinely need a usable account must check further; [Contact Lookups](#contact-lookups) explains why that distinction matters there.
 - If you have problems when deploying on **CPanel** or any other similar hosting, transpiling your code into **CommonJS** should fix the problems.
 
 ## Notice

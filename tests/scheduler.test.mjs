@@ -163,6 +163,80 @@ check(
     false,
 )
 
+/* --- repeating jobs ------------------------------------------------------- */
+
+throwsWith('parseInterval rejects empty', () => scheduler.parseInterval(''), 'REPEAT_INTERVAL_REQUIRED')
+throwsWith('parseInterval rejects junk', () => scheduler.parseInterval('kadang-kadang'), 'REPEAT_INTERVAL_INVALID')
+throwsWith(
+    'parseInterval rejects a sub-second interval',
+    () => scheduler.parseInterval('0s'),
+    'REPEAT_INTERVAL_TOO_SMALL',
+)
+throwsWith('parseInterval rejects a bare 500', () => scheduler.parseInterval('500'), 'REPEAT_INTERVAL_TOO_SMALL')
+
+check('parseInterval accepts a preset', scheduler.parseInterval('daily'), 86_400_000)
+check('parseInterval is case insensitive', scheduler.parseInterval('HOURLY'), 3_600_000)
+check('parseInterval accepts a duration', scheduler.parseInterval('30m'), 1_800_000)
+check('parseInterval accepts raw milliseconds', scheduler.parseInterval(5_000), 5_000)
+
+check('parseRepeat treats undefined as "once"', scheduler.parseRepeat(undefined), null)
+check('parseRepeat treats false as "once"', scheduler.parseRepeat(false), null)
+check('parseRepeat accepts a bare interval', scheduler.parseRepeat('weekly').intervalMs, 604_800_000)
+check('parseRepeat reads an object', scheduler.parseRepeat({ every: 'daily', count: 4 }).count, 4)
+check('parseRepeat defaults count to unlimited', scheduler.parseRepeat('daily').count, null)
+throwsWith(
+    'parseRepeat rejects a zero count',
+    () => scheduler.parseRepeat({ every: 'daily', count: 0 }),
+    'REPEAT_COUNT_INVALID',
+)
+throwsWith(
+    'parseRepeat rejects a fractional count',
+    () => scheduler.parseRepeat({ every: 'daily', count: 1.5 }),
+    'REPEAT_COUNT_INVALID',
+)
+
+const DAY = 86_400_000
+const ANCHOR = 1_000_000_000_000
+const daily = { intervalMs: DAY, count: null, until: null }
+
+check(
+    'nextOccurrence of a one-off is null',
+    scheduler.nextOccurrence({ repeat: null, runs: 0, scheduledAt: ANCHOR }, ANCHOR),
+    null,
+)
+check(
+    'nextOccurrence steps one interval',
+    scheduler.nextOccurrence({ repeat: daily, runs: 1, scheduledAt: ANCHOR }, ANCHOR),
+    ANCHOR + DAY,
+)
+check(
+    'nextOccurrence stops once count is reached',
+    scheduler.nextOccurrence({ repeat: { ...daily, count: 3 }, runs: 3, scheduledAt: ANCHOR }, ANCHOR),
+    null,
+)
+check(
+    'nextOccurrence keeps going while count allows',
+    scheduler.nextOccurrence({ repeat: { ...daily, count: 3 }, runs: 2, scheduledAt: ANCHOR }, ANCHOR),
+    ANCHOR + 2 * DAY,
+)
+// The cadence is anchored to `scheduledAt`, so a week of downtime must resume
+// at the next slot rather than queue a burst of seven messages.
+check(
+    'nextOccurrence skips the slots missed while down',
+    scheduler.nextOccurrence({ repeat: daily, runs: 1, scheduledAt: ANCHOR }, ANCHOR + 7 * DAY),
+    ANCHOR + 8 * DAY,
+)
+check(
+    'nextOccurrence respects an inclusive until',
+    scheduler.nextOccurrence({ repeat: { ...daily, until: ANCHOR + 3 * DAY }, runs: 3, scheduledAt: ANCHOR }, ANCHOR),
+    ANCHOR + 3 * DAY,
+)
+check(
+    'nextOccurrence stops past until',
+    scheduler.nextOccurrence({ repeat: { ...daily, until: ANCHOR + 2 * DAY }, runs: 3, scheduledAt: ANCHOR }, ANCHOR),
+    null,
+)
+
 /* -------------------------------------------------------------------------- */
 /* HTTP surface                                                               */
 /* -------------------------------------------------------------------------- */
@@ -197,6 +271,19 @@ check('  ...the session is recorded on the job', created.json.data.sessionId, SE
 
 const jobId = created.json.data.id
 ok('  ...and the job got an id', typeof jobId === 'string' && jobId.length > 0)
+
+const badInterval = await call('POST', `/scheduler?id=${SESSION}`, {
+    receiver: '628123456789',
+    message: { text: 'x' },
+    scheduledAt: iso,
+    repeat: { every: 'setiap hari' },
+})
+check('POST /scheduler rejects a nonsense repeat', badInterval.status, 400)
+check(
+    '  ...and says which field',
+    badInterval.json.message,
+    '"repeat.every" must be hourly / daily / weekly, a duration like "30m", or milliseconds.',
+)
 
 const listed = await call('GET', `/scheduler/list?id=${SESSION}`)
 check('GET /scheduler/list finds it', listed.json.data.length, 1)
@@ -244,6 +331,50 @@ check('the fired job is marked sent', afterFire.json.data.status, 'sent')
 check('  ...and records the message id', afterFire.json.data.messageId, 'fake-1')
 
 /* -------------------------------------------------------------------------- */
+/* A repeating series                                                         */
+/* -------------------------------------------------------------------------- */
+
+const repeating = await call('POST', `/scheduler?id=${SESSION}`, {
+    receiver: '628555000111',
+    message: { text: 'pengulangan harian' },
+    scheduledAt: new Date(Date.now() + 3_600_000).toISOString(),
+    repeat: { every: 'daily', count: 3 },
+})
+check('POST /scheduler accepts a repeat', repeating.status, 201)
+check('  ...and reports the interval', repeating.json.data.repeat.intervalMs, 86_400_000)
+check('  ...and the count', repeating.json.data.repeat.count, 3)
+check('  ...starting with no runs', repeating.json.data.runs, 0)
+
+// Drive the series by hand rather than waiting three days. `runs` is read
+// before the send, so the recorded values are the occurrence indices.
+const occurrences = []
+const recordingSend = async (job) => {
+    occurrences.push(job.runs)
+
+    return { key: { id: `series-${occurrences.length}` } }
+}
+
+let seriesClock = repeating.json.data.runAt
+
+for (let pass = 0; pass < 3; pass++) {
+    await scheduler.runDueJobs({ now: seriesClock, send: recordingSend })
+    seriesClock += 86_400_000
+}
+
+check('a repeating job fires once per interval', occurrences.length, 3)
+check('  ...in order', occurrences.join(','), '0,1,2')
+
+const afterSeries = await call('GET', `/scheduler/find/${repeating.json.data.id}?id=${SESSION}`)
+check('a finished series is completed, not sent', afterSeries.json.data.status, 'completed')
+check('  ...having run its full count', afterSeries.json.data.runs, 3)
+check('  ...and keeping the last message id', afterSeries.json.data.messageId, 'series-3')
+
+// One extra pass must not resurrect a finished series.
+const extra = await scheduler.runDueJobs({ now: seriesClock + 86_400_000, send: recordingSend })
+check('a completed series does not fire again', extra.length, 0)
+check('  ...and its run count is unchanged', occurrences.length, 3)
+
+/* -------------------------------------------------------------------------- */
 /* Retry, then give up                                                        */
 /* -------------------------------------------------------------------------- */
 
@@ -288,11 +419,13 @@ check('  ...with a fresh attempt budget', revived.json.data.attempts, 0)
 await scheduler.flush()
 const onDisk = JSON.parse(readFileSync(storePath, 'utf8'))
 ok('the scheduler file was written', Array.isArray(onDisk.jobs))
-check('  ...with every job in it', onDisk.jobs.length, 3)
+check('  ...with every job in it', onDisk.jobs.length, 4)
 ok('  ...and it is valid json with a version', onDisk.version === 1)
+ok('  ...including the repeat spec', onDisk.jobs.find((job) => job.id === repeating.json.data.id)?.repeat?.count === 3)
 
 // A restart with a job whose time passed long ago must not send it late.
 const stalePath = join(workDir, 'stale.json')
+const DAY_MS = 86_400_000
 const stale = {
     version: 1,
     jobs: [
@@ -300,8 +433,8 @@ const stale = {
             id: 'stale',
             sessionId: SESSION,
             status: 'pending',
-            runAt: Date.now() - 86_400_000,
-            scheduledAt: Date.now() - 86_400_000,
+            runAt: Date.now() - DAY_MS,
+            scheduledAt: Date.now() - DAY_MS,
             attempts: 0,
         },
         {
@@ -312,17 +445,34 @@ const stale = {
             scheduledAt: Date.now() + 3_600_000,
             attempts: 0,
         },
+        {
+            // A daily series whose last slot was a day ago. Unlike the one-off
+            // above it must survive the restart, moved to tomorrow.
+            id: 'series',
+            sessionId: SESSION,
+            status: 'pending',
+            scheduledAt: Date.now() - 3 * DAY_MS,
+            runAt: Date.now() - DAY_MS,
+            attempts: 0,
+            runs: 1,
+            repeat: { intervalMs: DAY_MS, count: 5, until: null },
+        },
     ],
 }
 
 writeFileSync(stalePath, JSON.stringify(stale))
 const restored = await scheduler.restore({ file: stalePath })
-check('restore brings both jobs back', restored.restored, 2)
-check('  ...and reports the missed one', restored.missed, 1)
+check('restore brings every job back', restored.restored, 3)
+check('  ...and reports the missed one-off', restored.missed, 1)
 
 const restoredList = scheduler.list(SESSION)
-check('the day-old job is missed', restoredList.find((job) => job.id === 'stale').status, 'missed')
+check('the day-old one-off is missed', restoredList.find((job) => job.id === 'stale').status, 'missed')
 check('the future job is still pending', restoredList.find((job) => job.id === 'fresh').status, 'pending')
+
+const resumed = restoredList.find((job) => job.id === 'series')
+check('a missed series is not written off', resumed.status, 'pending')
+ok('  ...it is moved to its next slot', resumed.runAt > Date.now() && resumed.runAt <= Date.now() + DAY_MS)
+check('  ...and skipped slots do not eat the count', resumed.runs, 1)
 
 /* -------------------------------------------------------------------------- */
 /* Cleanup                                                                    */

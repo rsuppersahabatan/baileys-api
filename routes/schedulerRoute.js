@@ -7,8 +7,9 @@ import sessionValidator from './../middlewares/sessionValidator.js'
 
 const router = Router()
 
-// Queueing a message needs a live connection, because the receiver is checked
-// against WhatsApp before the job is accepted.
+// Queueing a message needs a live connection. A job that cannot be sent only
+// burns through its retry budget, and the caller is better off being told
+// "not now" than having a message silently rot in the queue.
 router.post(
     '/',
     query('id').notEmpty(),

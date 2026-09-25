@@ -2,6 +2,7 @@ import { Router } from 'express'
 import authenticationValidator from './middlewares/authenticationValidator.js'
 import response from './response.js'
 import chatsRoute from './routes/chatsRoute.js'
+import contactsRoute from './routes/contactsRoute.js'
 import groupsRoute from './routes/groupsRoute.js'
 import miscRoute from './routes/miscRoute.js'
 import schedulerRoute from './routes/schedulerRoute.js'
@@ -13,6 +14,7 @@ router.use(authenticationValidator)
 
 router.use('/sessions', sessionsRoute)
 router.use('/chats', chatsRoute)
+router.use('/contacts', contactsRoute)
 router.use('/groups', groupsRoute)
 router.use('/misc', miscRoute)
 router.use('/scheduler', schedulerRoute)

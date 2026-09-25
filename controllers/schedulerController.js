@@ -13,7 +13,7 @@ import * as scheduler from '../whatsapp/scheduler.js'
 const failure = (error, fallback) => (error?.status ? error.message : fallback)
 
 const add = async (req, res) => {
-    const { receiver, message, scheduledAt } = req.body
+    const { receiver, message, scheduledAt, repeat, typing } = req.body
     const isGroup = req.body.isGroup ?? false
 
     try {
@@ -22,6 +22,8 @@ const add = async (req, res) => {
             message,
             scheduledAt,
             isGroup,
+            repeat,
+            typing,
         })
 
         response(res, 201, true, 'The message has been scheduled.', job)
@@ -47,7 +49,7 @@ const find = (req, res) => {
 }
 
 const update = async (req, res) => {
-    const { scheduledAt, receiver, message, isGroup } = req.body
+    const { scheduledAt, receiver, message, isGroup, repeat, typing } = req.body
 
     try {
         const job = await scheduler.update(res.locals.sessionId, req.params.jobId, {
@@ -55,6 +57,8 @@ const update = async (req, res) => {
             receiver,
             message,
             isGroup,
+            repeat,
+            typing,
         })
 
         if (!job) {

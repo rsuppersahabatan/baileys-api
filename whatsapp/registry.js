@@ -27,6 +27,18 @@ export const isSessionConnected = (sessionId) => {
     return getSession(sessionId)?.ws?.socket?.readyState === 1
 }
 
+/**
+ * Is the session actually logged in, rather than merely holding an open socket?
+ *
+ * `isSessionConnected` only checks that the websocket is open, which is also
+ * true while a QR code is still waiting to be scanned — baileys opens the socket
+ * before the login finishes. Anything that needs a usable account has to ask
+ * this instead.
+ */
+export const isSessionLoggedIn = (sessionId) => {
+    return isSessionConnected(sessionId) && getSession(sessionId)?.authState?.creds?.registered === true
+}
+
 export const resetRetries = (sessionId) => {
     retries.delete(sessionId)
 }
