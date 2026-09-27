@@ -1,3 +1,5 @@
+import { config } from '../config.js'
+import { AppError } from '../errors.js'
 import response from '../response.js'
 import { validateMediaUrl } from '../utils/functions.js'
 import {
@@ -13,6 +15,17 @@ import { toJid } from '../whatsapp/jid.js'
 import { downloadMessageMedia } from '../whatsapp/media.js'
 import { getSession } from '../whatsapp/registry.js'
 
+/**
+ * Chat endpoints.
+ *
+ * Handlers are deliberately thin: they read the request, call into
+ * `whatsapp/actions.js`, and answer. There is no `try/catch` around the socket
+ * calls because Express 5 forwards a rejection from an `async` handler to the
+ * error middleware in `routes.js` on its own, and that middleware knows how to
+ * turn an `AppError` into a response. Wrapping each call here only meant the
+ * real reason for a failure was replaced with a generic 500.
+ */
+
 /** Message keys the API accepts a `url` for. */
 const MEDIA_MESSAGE_TYPES = ['image', 'video', 'audio', 'document', 'sticker']
 
@@ -26,53 +39,67 @@ const send = async (req, res) => {
     const isGroup = req.body.isGroup ?? false
     const receiver = toJid(req.body.receiver, isGroup)
 
-    try {
-        if (!(await isJidExists(session, receiver, isGroup))) {
-            return response(res, 400, false, 'The receiver number is not exists.')
-        }
-
-        const invalidMedia = validateMediaUrl(message, MEDIA_MESSAGE_TYPES)
-
-        if (invalidMedia) {
-            return response(res, 400, false, invalidMedia)
-        }
-
-        await sendMessageWithTyping(session, receiver, message, { typing: req.body.typing }, 0)
-
-        response(res, 200, true, 'The message has been successfully sent.')
-    } catch {
-        response(res, 500, false, 'Failed to send the message.')
+    if (!(await isJidExists(session, receiver, isGroup))) {
+        throw new AppError('The receiver number is not exists.', { status: 400, code: 'RECEIVER_NOT_FOUND' })
     }
+
+    const invalidMedia = validateMediaUrl(message, MEDIA_MESSAGE_TYPES)
+
+    if (invalidMedia) {
+        throw new AppError(invalidMedia, { status: 400, code: 'INVALID_MEDIA_URL' })
+    }
+
+    await sendMessageWithTyping(session, receiver, message, { typing: req.body.typing })
+
+    response(res, 200, true, 'The message has been successfully sent.')
 }
 
+/**
+ * Send one message to each entry of the request body.
+ *
+ * A per-entry failure is collected rather than thrown: a bulk of twenty
+ * recipients where one number is dead should still deliver nineteen. Only a
+ * malformed request — an empty list, or more recipients than the ceiling allows
+ * — is rejected outright, and it is rejected *before* anything is sent so a
+ * caller cannot end up with half a broadcast and no way to tell.
+ */
 const sendBulk = async (req, res) => {
     const session = getSession(res.locals.sessionId)
     const recipients = req.body
 
     if (!Array.isArray(recipients) || recipients.length === 0) {
-        return response(res, 400, false, 'The message list is empty.')
+        throw new AppError('The message list is empty.', { status: 400, code: 'BULK_EMPTY' })
+    }
+
+    if (recipients.length > config.send.maxBulkRecipients) {
+        throw new AppError(
+            `A bulk request carries at most ${config.send.maxBulkRecipients} recipients, got ${recipients.length}.`,
+            { status: 400, code: 'BULK_TOO_LARGE' },
+        )
     }
 
     const errors = []
 
     for (const [index, entry] of recipients.entries()) {
-        const { message } = entry
+        const { message, typing, delay } = entry ?? {}
 
-        if (!entry.receiver || !message) {
+        if (!entry?.receiver || !message) {
             errors.push({ key: index, message: 'The receiver number is not exists.' })
             continue
         }
 
-        const delay = !entry.delay || Number.isNaN(Number(entry.delay)) ? 1000 : entry.delay
-        const receiver = toJid(entry.receiver)
+        const isGroup = entry.isGroup ?? false
+        const receiver = toJid(entry.receiver, isGroup)
 
         try {
-            if (!(await isJidExists(session, receiver))) {
+            if (!(await isJidExists(session, receiver, isGroup))) {
                 errors.push({ key: index, message: 'number not exists on whatsapp' })
                 continue
             }
 
-            await sendMessageWithTyping(session, receiver, message, { typing: entry.typing }, delay)
+            // `delay` is a floor for this one send; the send throttle spaces
+            // everything else out on its own.
+            await sendMessageWithTyping(session, receiver, message, { typing }, delay)
         } catch (error) {
             errors.push({ key: index, message: error.message })
         }
@@ -97,33 +124,24 @@ const deleteChat = async (req, res) => {
     const session = getSession(res.locals.sessionId)
     const { receiver, isGroup, message } = req.body
 
-    try {
-        await sendMessage(session, toJid(receiver, isGroup), { delete: message })
+    await sendMessage(session, toJid(receiver, isGroup), { delete: message })
 
-        response(res, 200, true, 'Message has been successfully deleted.')
-    } catch {
-        response(res, 500, false, 'Failed to delete message .')
-    }
+    response(res, 200, true, 'Message has been successfully deleted.')
 }
 
 const forward = async (req, res) => {
     const session = getSession(res.locals.sessionId)
     const { forward: source, receiver, isGroup } = req.body
     const { id, remoteJid } = source
+    const message = getStoredMessage(session, remoteJid, id)
 
-    try {
-        const message = getStoredMessage(session, remoteJid, id)
-
-        if (!message) {
-            return response(res, 404, false, 'The message to forward was not found.')
-        }
-
-        await sendMessage(session, toJid(receiver, isGroup), { forward: message }, {}, 0)
-
-        response(res, 200, true, 'The message has been successfully forwarded.')
-    } catch {
-        response(res, 500, false, 'Failed to forward the message.')
+    if (!message) {
+        throw new AppError('The message to forward was not found.', { status: 404, code: 'MESSAGE_NOT_FOUND' })
     }
+
+    await sendMessage(session, toJid(receiver, isGroup), { forward: message })
+
+    response(res, 200, true, 'The message has been successfully forwarded.')
 }
 
 const read = async (req, res) => {
@@ -131,51 +149,43 @@ const read = async (req, res) => {
     const { keys } = req.body
 
     if (!keys?.[0]?.id) {
-        return response(res, 400, false, 'Data not found')
+        throw new AppError('Data not found', { status: 400, code: 'KEYS_REQUIRED' })
     }
 
-    try {
-        await readMessages(session, keys)
+    await readMessages(session, keys)
 
-        response(res, 200, true, 'The message has been successfully marked as read.')
-    } catch {
-        response(res, 500, false, 'Failed to mark the message as read.')
-    }
+    response(res, 200, true, 'The message has been successfully marked as read.')
 }
 
 const sendPresence = async (req, res) => {
     const session = getSession(res.locals.sessionId)
     const { receiver, isGroup, presence } = req.body
 
-    try {
-        await sendPresenceUpdate(session, presence, toJid(receiver, isGroup))
+    await sendPresenceUpdate(session, presence, toJid(receiver, isGroup))
 
-        response(res, 200, true, 'Presence has been successfully sent.')
-    } catch {
-        response(res, 500, false, 'Failed to send presence.')
-    }
+    response(res, 200, true, 'Presence has been successfully sent.')
 }
 
 const downloadMedia = async (req, res) => {
     const session = getSession(res.locals.sessionId)
     const { remoteJid, messageId } = req.body
+    const message = getStoredMessage(session, remoteJid, messageId)
+
+    if (!message) {
+        throw new AppError('The message was not found.', { status: 404, code: 'MESSAGE_NOT_FOUND' })
+    }
 
     try {
-        const message = getStoredMessage(session, remoteJid, messageId)
-
-        if (!message) {
-            return response(res, 404, false, 'The message was not found.')
-        }
-
         const media = await downloadMessageMedia(session, message)
 
         response(res, 200, true, 'Message downloaded successfully', media)
-    } catch {
-        response(
-            res,
-            500,
-            false,
+    } catch (cause) {
+        // `downloadMediaMessage` rejects with whatever the socket produced, which
+        // is rarely something a caller can act on — so it is replaced with an
+        // explanation of the two ways this normally fails.
+        throw new AppError(
             'Error downloading multimedia message: it may not exist or may not contain multimedia content.',
+            { status: 500, code: 'MEDIA_DOWNLOAD_FAILED', cause },
         )
     }
 }
@@ -199,16 +209,12 @@ const getMessages =
 
         const cursor = cursorId ? { before: { id: cursorId, fromMe: cursorFromMe === 'true' } } : {}
 
-        try {
-            const messages = await session.store.loadMessages(toJid(jid, isGroup), {
-                limit: Number.parseInt(limit, 10) || 25,
-                ...cursor,
-            })
+        const messages = await session.store.loadMessages(toJid(jid, isGroup), {
+            limit: Number.parseInt(limit, 10) || 25,
+            ...cursor,
+        })
 
-            response(res, 200, true, '', messages)
-        } catch {
-            response(res, 500, false, 'Failed to load messages.')
-        }
+        response(res, 200, true, '', messages)
     }
 
 export { getList, send, sendBulk, deleteChat, read, forward, sendPresence, downloadMedia, getMessages }

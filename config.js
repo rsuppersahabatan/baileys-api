@@ -59,6 +59,25 @@ export const config = {
         maxMessagesPerChat: toInt(process.env.MAX_MESSAGES_PER_CHAT, 150),
         autoSaveInterval: toInt(process.env.STORE_AUTOSAVE_INTERVAL, 10000),
     },
+    /**
+     * How fast a session is allowed to send. Two consecutive messages are
+     * separated by a gap drawn from `[minDelay, maxDelay]`; the range exists so
+     * the cadence is not a machine-perfect constant.
+     *
+     * These are the only lever against being read as an automated sender, so
+     * lowering them below a second is a deliberate choice to look more like a
+     * bot. Setting both to `0` disables pacing entirely.
+     */
+    send: {
+        minDelay: toInt(process.env.SEND_MIN_DELAY, 1200),
+        maxDelay: toInt(process.env.SEND_MAX_DELAY, 2500),
+        /**
+         * Most recipients a single `POST /chats/send-bulk` may carry. The route
+         * is the easiest way to accidentally run a broadcast, so the ceiling is
+         * enforced before anything is sent rather than half-way through.
+         */
+        maxBulkRecipients: toInt(process.env.MAX_BULK_RECIPIENTS, 50),
+    },
     scheduler: {
         /**
          * How late a job may be and still be sent after a restart. Anything

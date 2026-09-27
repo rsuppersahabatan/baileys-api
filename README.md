@@ -33,6 +33,7 @@ whatsapp/
   webhook.js            webhook delivery and event filtering
   actions.js            the only module that calls baileys
   scheduler.js          queued messages, their timer and their JSON file
+  throttle.js           send pacing: the gap between two messages
   typing.js             typing-indicator timing arithmetic
   media.js              media download and base64 helpers
   jid.js                phone / group / LID JID normalisation
@@ -72,6 +73,15 @@ LOG_LEVEL=silent
 # Fetch link previews for links found in incoming messages
 GENERATE_HIGH_QUALITY_LINK_PREVIEW=true
 
+# SENDING PACE
+# Gap between two consecutive messages on one session, in milliseconds. The
+# range is randomised on purpose — a constant cadence reads as automated.
+# Set both to 0 to disable pacing.
+SEND_MIN_DELAY=1200
+SEND_MAX_DELAY=2500
+# Most recipients one POST /chats/send-bulk may carry
+MAX_BULK_RECIPIENTS=50
+
 # MESSAGE SCHEDULER
 SCHEDULER_LATE_GRACE=300000
 SCHEDULER_MAX_ATTEMPTS=3
@@ -100,7 +110,7 @@ Also check out the `examples` directory for the basic usage examples.
 | Command                | What it does                                                                                  |
 | ---------------------- | --------------------------------------------------------------------------------------------- |
 | `npm start`            | Run the API                                                                                   |
-| `npm test`             | Store, QR-lifecycle, libsignal, scheduler, contacts, typing and collection checks (244 total) |
+| `npm test`             | Store, QR-lifecycle, libsignal, scheduler, contacts, typing, throttle and collection checks (274 total) |
 | `npm run lint`         | ESLint (flat config)                                                                          |
 | `npm run lint:fix`     | ESLint with `--fix`                                                                           |
 | `npm run format`       | Prettier write                                                                                |
@@ -534,6 +544,48 @@ appears is a flicker, which is worse than not sending one at all.
 socket refuses to send presence updates the send goes ahead anyway; if the socket
 is genuinely broken the send fails on its own and reports the real reason. Only
 `sendTypingIndicator` used directly, on its own, surfaces a presence failure.
+
+## Sending Pace
+
+WhatsApp flags accounts that behave like automated senders, and a burst of
+messages leaving one socket with no spacing between them is one of the clearest
+signals there is. Every outgoing message therefore passes through a single choke
+point, `whatsapp/throttle.js`, which does two things:
+
+- **Serialises sends per session.** Two requests that arrive together cannot race
+  their messages onto the wire, and a scheduler tick cannot overlap a request
+  handler.
+- **Separates consecutive sends by a randomised gap.** `SEND_MIN_DELAY` and
+  `SEND_MAX_DELAY` (1200–2500 ms by default) define the range. The range is the
+  point: a machine-perfect one-second cadence is itself a pattern.
+
+The first message on a session is never delayed — there is nothing for it to be
+too close to — so a single `POST /chats/send` still answers promptly. The gap is
+measured from the previous send's *start*, so a slow send does not stack its own
+duration on top of it.
+
+This covers every send path: `/chats/send`, `/chats/send-bulk`, `/groups/send`,
+`/misc/share-story` and the scheduler. A batch of queued jobs that come due at
+the same moment is spaced out automatically instead of arriving as one burst.
+
+### What this does not do
+
+Pacing removes *one* signal. It does not make an account welcome to message
+strangers. Whether a number gets flagged depends mostly on things this code
+cannot see: who the recipients are, whether they report the messages, how old and
+how warm the account is, and the fact that Baileys is not an official WhatsApp
+client. If recipients are reporting your messages, no delay setting will fix
+that — the fix is to stop messaging people who did not ask to hear from you.
+
+Two further limits apply to the bulk route, because it is the easiest way to
+accidentally run a broadcast:
+
+- **`MAX_BULK_RECIPIENTS`** (50 by default) caps one `POST /chats/send-bulk`.
+  The whole request is rejected above the ceiling, before anything is sent, so a
+  caller cannot end up with half a broadcast and no way to tell.
+- **A per-entry `delay`** raises the gap for that one recipient. It is a floor on
+  top of the configured range, not a way to send faster — a `delay` of `0` or a
+  missing one simply leaves the configured range in charge.
 
 ## Available Features
 

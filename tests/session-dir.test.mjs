@@ -25,7 +25,7 @@
  *
  * Run with `npm test`. No test framework needed.
  */
-import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { useMultiFileAuthState } from '@innovatorssoft/baileys'
 import { authDir, ensureSessionsDir, sessionsDir, storeFile } from '../config.js'
@@ -106,11 +106,25 @@ check('a write after the unlink succeeds', afterUnlink, null)
 // `deleteSession()` removes paths recursively, so a session deleted while a
 // reconnect was pending used to take `sessions/` with it. The retry recreates
 // the root before rebuilding, which this checks can be done from nothing.
+//
+// The root also holds a *tracked* `.gitignore`, so wiping it deletes a file that
+// is under version control. It is captured first and written back below: without
+// that, every `npm test` left the working tree dirty with one deleted file and
+// the next `git status` blamed whoever ran the suite.
+const gitignorePath = join(sessionsDir(), '.gitignore')
+const gitignore = existsSync(gitignorePath) ? readFileSync(gitignorePath, 'utf8') : null
+
 rmSync(sessionsDir(), { force: true, recursive: true })
 check('session root can be removed wholesale', existsSync(sessionsDir()), false)
 
 ensureSessionsDir()
 check('and brought back before the retry', existsSync(sessionsDir()), true)
+
+if (gitignore !== null) {
+    writeFileSync(gitignorePath, gitignore)
+}
+
+check('the tracked .gitignore survives the wipe', existsSync(gitignorePath), gitignore !== null)
 
 /* -------------------------------------------------------------------------- */
 /* Cleanup                                                                    */

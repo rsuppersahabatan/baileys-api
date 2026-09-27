@@ -2,6 +2,7 @@ import { delay } from '@innovatorssoft/baileys'
 import { AppError, ignoreFailure, runOperation } from '../errors.js'
 import { downloadToTempFile, removeFile } from '../utils/download.js'
 import { GROUP_SUFFIX, USER_SUFFIX } from './jid.js'
+import { paceSend } from './throttle.js'
 import { resolveTypingDuration } from './typing.js'
 
 /**
@@ -13,14 +14,17 @@ import { resolveTypingDuration } from './typing.js'
  * client.
  */
 
-/** Send a message, optionally waiting first to stay under WhatsApp's rate limits. */
-export const sendMessage = (socket, receiver, message, options = {}, delayMs = 1000) => {
+/**
+ * Send a message, paced against every other send on the same socket.
+ *
+ * `minGap` raises the gap for this one send above the configured range; it is
+ * how `POST /chats/send-bulk` honours a per-recipient `delay`. Anything falsy
+ * leaves the configured range in charge, so callers that just want a message
+ * sent do not have to think about pacing at all.
+ */
+export const sendMessage = (socket, receiver, message, options = {}, minGap = null) => {
     return runOperation(
-        async () => {
-            await delay(Number(delayMs))
-
-            return socket.sendMessage(receiver, message, options)
-        },
+        () => paceSend(socket, () => socket.sendMessage(receiver, message, options), { minDelay: minGap }),
         'Failed to send the message.',
         'SEND_MESSAGE_FAILED',
     )
@@ -49,7 +53,7 @@ export const sendTypingIndicator = async (socket, jid, duration) => {
  * milliseconds, or a `{ duration }` object. Anything falsy sends nothing extra,
  * so this is a drop-in replacement for `sendMessage`.
  */
-export const sendMessageWithTyping = async (socket, receiver, message, options = {}, delayMs = 1000) => {
+export const sendMessageWithTyping = async (socket, receiver, message, options = {}, minGap = null) => {
     const { typing = false, ...sendOptions } = options
     const duration = resolveTypingDuration(typing, message)
 
@@ -60,7 +64,7 @@ export const sendMessageWithTyping = async (socket, receiver, message, options =
         await ignoreFailure(() => sendTypingIndicator(socket, receiver, duration))
     }
 
-    return sendMessage(socket, receiver, message, sendOptions, delayMs)
+    return sendMessage(socket, receiver, message, sendOptions, minGap)
 }
 
 /** Does the phone number / group actually exist on WhatsApp? */

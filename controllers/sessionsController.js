@@ -1,6 +1,16 @@
+import { AppError } from '../errors.js'
 import response from '../response.js'
 import { getSession, hasSession, listSessions } from '../whatsapp/registry.js'
 import { createSession, logoutSession } from '../whatsapp/session.js'
+
+/**
+ * Session lifecycle.
+ *
+ * `add` is the odd one out: the QR code or pairing code is delivered later, from
+ * a socket event, so the request stays open until `createSession` answers it.
+ * That is also why it keeps its own `catch` — the failure happens after the
+ * handler has returned, so nothing would forward it to the error middleware.
+ */
 
 const SOCKET_STATES = ['connecting', 'connected', 'disconnecting', 'disconnected']
 
@@ -21,21 +31,19 @@ const add = (req, res) => {
     const { id, typeAuth, phoneNumber } = req.body
 
     if (hasSession(id)) {
-        return response(res, 409, false, 'Session already exists, please use another id.')
+        throw new AppError('Session already exists, please use another id.', { status: 409, code: 'SESSION_EXISTS' })
     }
 
     if (typeAuth !== undefined && !['qr', 'code'].includes(typeAuth)) {
-        return response(res, 400, false, 'typeAuth must be qr or code.')
+        throw new AppError('typeAuth must be qr or code.', { status: 400, code: 'INVALID_TYPE_AUTH' })
     }
 
     const usePairingCode = typeAuth === 'code'
 
     if (usePairingCode && !phoneNumber) {
-        return response(res, 400, false, 'phoneNumber is required.')
+        throw new AppError('phoneNumber is required.', { status: 400, code: 'PHONE_NUMBER_REQUIRED' })
     }
 
-    // The QR / pairing code is delivered later, from a socket event, so the
-    // request stays open until `createSession` answers it.
     createSession(id, { res, usePairingCode, phoneNumber }).catch((error) => {
         console.error(`Could not create session "${id}": ${error.message}`)
         response(res, 500, false, 'Unable to create session.')
@@ -43,13 +51,9 @@ const add = (req, res) => {
 }
 
 const del = async (req, res) => {
-    try {
-        await logoutSession(req.params.id)
-        response(res, 200, true, 'The session has been successfully deleted.')
-    } catch (error) {
-        console.error(`Could not delete session "${req.params.id}": ${error.message}`)
-        response(res, 500, false, 'Failed to delete the session.')
-    }
+    await logoutSession(req.params.id)
+
+    response(res, 200, true, 'The session has been successfully deleted.')
 }
 
 const list = (req, res) => {

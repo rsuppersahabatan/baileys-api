@@ -1,3 +1,4 @@
+import { AppError } from '../errors.js'
 import response from '../response.js'
 import * as scheduler from '../whatsapp/scheduler.js'
 
@@ -7,42 +8,39 @@ import * as scheduler from '../whatsapp/scheduler.js'
  * The session is resolved by the middleware (`res.locals.sessionId`); the job
  * id always comes from the path as `:jobId` so it cannot be confused with the
  * session id, which the session middlewares also read from `req.params.id`.
+ *
+ * Everything that can go wrong here already throws an `AppError` with a message
+ * written for the client, so the handlers just let it through and `routes.js`
+ * turns it into the response.
  */
 
-/** `AppError` messages are written for the client; anything else is not. */
-const failure = (error, fallback) => (error?.status ? error.message : fallback)
+const notFound = () => new AppError('Scheduled message not found.', { status: 404, code: 'JOB_NOT_FOUND' })
 
 const add = async (req, res) => {
     const { receiver, message, scheduledAt, repeat, typing } = req.body
     const isGroup = req.body.isGroup ?? false
 
-    try {
-        const job = await scheduler.schedule(res.locals.sessionId, {
-            receiver,
-            message,
-            scheduledAt,
-            isGroup,
-            repeat,
-            typing,
-        })
+    const job = await scheduler.schedule(res.locals.sessionId, {
+        receiver,
+        message,
+        scheduledAt,
+        isGroup,
+        repeat,
+        typing,
+    })
 
-        response(res, 201, true, 'The message has been scheduled.', job)
-    } catch (error) {
-        response(res, error.status ?? 500, false, failure(error, 'Failed to schedule the message.'))
-    }
+    response(res, 201, true, 'The message has been scheduled.', job)
 }
 
 const list = (req, res) => {
-    const jobs = scheduler.list(res.locals.sessionId)
-
-    response(res, 200, true, 'Scheduled message list', jobs)
+    response(res, 200, true, 'Scheduled message list', scheduler.list(res.locals.sessionId))
 }
 
 const find = (req, res) => {
     const job = scheduler.find(res.locals.sessionId, req.params.jobId)
 
     if (!job) {
-        return response(res, 404, false, 'Scheduled message not found.')
+        throw notFound()
     }
 
     response(res, 200, true, 'Scheduled message found', job)
@@ -51,38 +49,30 @@ const find = (req, res) => {
 const update = async (req, res) => {
     const { scheduledAt, receiver, message, isGroup, repeat, typing } = req.body
 
-    try {
-        const job = await scheduler.update(res.locals.sessionId, req.params.jobId, {
-            scheduledAt,
-            receiver,
-            message,
-            isGroup,
-            repeat,
-            typing,
-        })
+    const job = await scheduler.update(res.locals.sessionId, req.params.jobId, {
+        scheduledAt,
+        receiver,
+        message,
+        isGroup,
+        repeat,
+        typing,
+    })
 
-        if (!job) {
-            return response(res, 404, false, 'Scheduled message not found.')
-        }
-
-        response(res, 200, true, 'The scheduled message has been updated.', job)
-    } catch (error) {
-        response(res, error.status ?? 500, false, failure(error, 'Failed to update the scheduled message.'))
+    if (!job) {
+        throw notFound()
     }
+
+    response(res, 200, true, 'The scheduled message has been updated.', job)
 }
 
 const del = async (req, res) => {
-    try {
-        const job = await scheduler.cancel(res.locals.sessionId, req.params.jobId)
+    const job = await scheduler.cancel(res.locals.sessionId, req.params.jobId)
 
-        if (!job) {
-            return response(res, 404, false, 'Scheduled message not found.')
-        }
-
-        response(res, 200, true, 'The scheduled message has been cancelled.', job)
-    } catch (error) {
-        response(res, error.status ?? 500, false, failure(error, 'Failed to cancel the scheduled message.'))
+    if (!job) {
+        throw notFound()
     }
+
+    response(res, 200, true, 'The scheduled message has been cancelled.', job)
 }
 
 export { add, list, find, update, del }

@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { AppError } from './errors.js'
 import authenticationValidator from './middlewares/authenticationValidator.js'
 import response from './response.js'
 import chatsRoute from './routes/chatsRoute.js'
@@ -24,17 +25,28 @@ router.use((req, res) => {
 })
 
 /**
- * Last-resort handler. Anything a controller did not catch — an async throw in
- * a route that has no `try`, a bug in a middleware — still answers with the
- * usual envelope instead of Express' default HTML error page.
+ * Last-resort handler, and the only place that decides how much of a failure a
+ * client gets to see.
+ *
+ * An `AppError` is a decision the code already made about the response — its
+ * message is written for the caller and its status is deliberate — so both are
+ * passed through. Anything else is a bug or a library failure: it is logged
+ * with its stack, and answered with a flat 500, because a driver message or an
+ * internal path is not something to hand to a client.
+ *
+ * Controllers rely on this. Express 5 forwards a rejected promise from an
+ * `async` handler here without any wrapper, which is what lets them skip the
+ * per-call `try/catch` that used to flatten every failure into a generic 500.
  */
 // eslint-disable-next-line no-unused-vars -- Express identifies error handlers by arity
 router.use((error, req, res, next) => {
-    console.error('Unhandled error:', error)
+    const known = error instanceof AppError
 
-    const status = error.status ?? 500
+    if (!known) {
+        console.error('Unhandled error:', error)
+    }
 
-    response(res, status, false, status < 500 ? error.message : 'Internal server error.')
+    response(res, known ? error.status : 500, false, known ? error.message : 'Internal server error.')
 })
 
 export default router

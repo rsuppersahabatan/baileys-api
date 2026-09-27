@@ -1,3 +1,4 @@
+import { AppError } from '../errors.js'
 import response from '../response.js'
 import { checkOnWhatsApp, fetchUsernames, findUserByUsername } from '../whatsapp/actions.js'
 import { toJid, toLidJid, toUserJid } from '../whatsapp/jid.js'
@@ -21,7 +22,12 @@ const asArray = (value) => (Array.isArray(value) ? value.filter(Boolean).map(Str
  */
 const hasDigits = (value) => /\d/.test(value)
 
-const malformedMessage = (values) => `These values contain no phone number or LID: ${values.join(', ')}.`
+const malformed = (values) => {
+    return new AppError(`These values contain no phone number or LID: ${values.join(', ')}.`, {
+        status: 400,
+        code: 'MALFORMED_TARGET',
+    })
+}
 
 /**
  * These lookups are answered by the account behind the session, and an unlogged
@@ -30,12 +36,15 @@ const malformedMessage = (values) => `These values contain no phone number or LI
  * immediate answer. `sessionValidator` cannot cover this: it only checks that
  * the websocket is open, which is also true while a QR code is unscanned.
  */
-const rejectIfNotLoggedIn = (res) => {
+const assertLoggedIn = (res) => {
     if (isSessionLoggedIn(res.locals.sessionId)) {
-        return null
+        return
     }
 
-    return response(res, 400, false, 'There is no connection with whatsapp at the moment, please try again')
+    throw new AppError('There is no connection with whatsapp at the moment, please try again', {
+        status: 400,
+        code: 'NOT_LOGGED_IN',
+    })
 }
 
 /**
@@ -60,11 +69,7 @@ const indexByJid = (entries) => {
 }
 
 const check = async (req, res) => {
-    const offline = rejectIfNotLoggedIn(res)
-
-    if (offline) {
-        return offline
-    }
+    assertLoggedIn(res)
 
     const session = getSession(res.locals.sessionId)
 
@@ -73,98 +78,88 @@ const check = async (req, res) => {
     const usernames = asArray(req.body.usernames)
 
     if (numbers.length + lids.length + usernames.length === 0) {
-        return response(res, 400, false, 'Provide at least one of "numbers", "lids" or "usernames".')
+        throw new AppError('Provide at least one of "numbers", "lids" or "usernames".', {
+            status: 400,
+            code: 'NOTHING_TO_CHECK',
+        })
     }
 
-    const malformed = [...numbers, ...lids].filter((value) => !hasDigits(value))
+    const malformedValues = [...numbers, ...lids].filter((value) => !hasDigits(value))
 
-    if (malformed.length > 0) {
-        return response(res, 400, false, malformedMessage(malformed))
+    if (malformedValues.length > 0) {
+        throw malformed(malformedValues)
     }
 
     const numberJids = numbers.map((number) => toUserJid(number))
     const lidJids = lids.map((lid) => toLidJid(lid))
 
-    try {
-        const jidResults = await checkOnWhatsApp(session, [...numberJids, ...lidJids])
-        const index = indexByJid(jidResults)
+    const jidResults = await checkOnWhatsApp(session, [...numberJids, ...lidJids])
+    const index = indexByJid(jidResults)
 
-        const checkedNumbers = numberJids.map((jid, position) => {
-            const entry = index.get(jid)
+    const checkedNumbers = numberJids.map((jid, position) => {
+        const entry = index.get(jid)
 
-            return {
-                input: numbers[position],
-                jid,
-                exists: Boolean(entry?.exists),
-                lid: entry?.lid ?? null,
-            }
-        })
-
-        const checkedLids = lidJids.map((jid, position) => {
-            const entry = index.get(jid)
-
-            return {
-                input: lids[position],
-                jid: entry?.jid ?? null,
-                lid: entry?.lid ?? jid,
-                exists: Boolean(entry?.exists),
-            }
-        })
-
-        // One USync query per username, run in order rather than in parallel so a
-        // long list does not arrive at the server all at once.
-        const checkedUsernames = []
-
-        for (const username of usernames) {
-            const entry = await findUserByUsername(session, username.replace(/^@/, ''))
-
-            checkedUsernames.push({
-                input: username,
-                jid: entry?.jid ?? null,
-                exists: Boolean(entry?.jid),
-                contact: Boolean(entry?.contact),
-            })
+        return {
+            input: numbers[position],
+            jid,
+            exists: Boolean(entry?.exists),
+            lid: entry?.lid ?? null,
         }
+    })
 
-        const all = [...checkedNumbers, ...checkedLids, ...checkedUsernames]
-        const found = all.filter((entry) => entry.exists).length
+    const checkedLids = lidJids.map((jid, position) => {
+        const entry = index.get(jid)
 
-        response(res, 200, true, `Checked ${all.length} target(s), ${found} exist on WhatsApp.`, {
-            numbers: checkedNumbers,
-            lids: checkedLids,
-            usernames: checkedUsernames,
+        return {
+            input: lids[position],
+            jid: entry?.jid ?? null,
+            lid: entry?.lid ?? jid,
+            exists: Boolean(entry?.exists),
+        }
+    })
+
+    // One USync query per username, run in order rather than in parallel so a
+    // long list does not arrive at the server all at once.
+    const checkedUsernames = []
+
+    for (const username of usernames) {
+        const entry = await findUserByUsername(session, username.replace(/^@/, ''))
+
+        checkedUsernames.push({
+            input: username,
+            jid: entry?.jid ?? null,
+            exists: Boolean(entry?.jid),
+            contact: Boolean(entry?.contact),
         })
-    } catch (error) {
-        response(res, error.status ?? 500, false, error.message ?? 'Failed to check those contacts.')
     }
+
+    const all = [...checkedNumbers, ...checkedLids, ...checkedUsernames]
+    const found = all.filter((entry) => entry.exists).length
+
+    response(res, 200, true, `Checked ${all.length} target(s), ${found} exist on WhatsApp.`, {
+        numbers: checkedNumbers,
+        lids: checkedLids,
+        usernames: checkedUsernames,
+    })
 }
 
 /** The username of a JID, for accounts that have one. */
 const username = async (req, res) => {
-    const offline = rejectIfNotLoggedIn(res)
-
-    if (offline) {
-        return offline
-    }
+    assertLoggedIn(res)
 
     const session = getSession(res.locals.sessionId)
 
     if (!hasDigits(req.params.jid)) {
-        return response(res, 400, false, malformedMessage([req.params.jid]))
+        throw malformed([req.params.jid])
     }
 
     const jid = toJid(req.params.jid)
+    const [entry] = await fetchUsernames(session, [jid])
 
-    try {
-        const [entry] = await fetchUsernames(session, [jid])
-
-        response(res, 200, true, 'The username has been obtained successfully.', {
-            jid,
-            username: entry?.username ?? null,
-        })
-    } catch (error) {
-        response(res, error.status ?? 500, false, error.message ?? 'Failed to fetch the username.')
-    }
+    response(res, 200, true, 'The username has been obtained successfully.', {
+        jid,
+        username: entry?.username ?? null,
+    })
 }
 
 export { check, username }

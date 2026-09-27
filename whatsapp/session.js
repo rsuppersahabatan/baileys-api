@@ -16,6 +16,7 @@ import { getStoredMessageContent } from './actions.js'
 import { registerEventHandlers } from './events.js'
 import * as registry from './registry.js'
 import { forgetSession as forgetScheduledJobs } from './scheduler.js'
+import { forgetPacing } from './throttle.js'
 import { notify } from './webhook.js'
 
 /** Shared retry counter for failed message decryptions, as required by Baileys. */
@@ -284,6 +285,10 @@ export const deleteSession = async (sessionId) => {
 
         await quietly(() => socket.end?.())
         await quietly(() => socket.ws?.close())
+
+        // The send throttle keeps per-socket state, and it is keyed by the
+        // socket object itself — drop it here or it would outlive the session.
+        forgetPacing(socket)
     }
 
     // Nothing can write to the session after this point, so it is safe to
