@@ -14,13 +14,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ookamiiixd/baileys-api.git"
+    "url": "git+https://github.com/rsuppersahabatan/baileys-api.git"
   },
   "author": "ookamiiixd <ookamiiixd@gmail.com>",
   "bugs": {
-    "url": "https://github.com/ookamiiixd/baileys-api/issues"
+    "url": "https://github.com/rsuppersahabatan/baileys-api/issues"
   },
-  "homepage": "https://github.com/ookamiiixd/baileys-api#readme",
+  "homepage": "https://github.com/rsuppersahabatan/baileys-api#readme",
   "engines": {
     "node": ">=20.0.0"
   },
