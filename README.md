@@ -1,6 +1,6 @@
 # Baileys API
 
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/andresayac/baileys-api)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/rsuppersahabatan/baileys-api)
 
 An implementation of [@innovatorssoft/Baileys](https://github.com/innovatorssoft/Baileys) as a simple RESTful API service with multiple device support. This project implements both **Multi-Device** client so that you can choose and use one of them easily.
 
@@ -107,14 +107,14 @@ Also check out the `examples` directory for the basic usage examples.
 
 ## Scripts
 
-| Command                | What it does                                                                                  |
-| ---------------------- | --------------------------------------------------------------------------------------------- |
-| `npm start`            | Run the API                                                                                   |
+| Command                | What it does                                                                                            |
+| ---------------------- | ------------------------------------------------------------------------------------------------------- |
+| `npm start`            | Run the API                                                                                             |
 | `npm test`             | Store, QR-lifecycle, libsignal, scheduler, contacts, typing, throttle and collection checks (274 total) |
-| `npm run lint`         | ESLint (flat config)                                                                          |
-| `npm run lint:fix`     | ESLint with `--fix`                                                                           |
-| `npm run format`       | Prettier write                                                                                |
-| `npm run format:check` | Prettier check                                                                                |
+| `npm run lint`         | ESLint (flat config)                                                                                    |
+| `npm run lint:fix`     | ESLint with `--fix`                                                                                     |
+| `npm run format`       | Prettier write                                                                                          |
+| `npm run format:check` | Prettier check                                                                                          |
 
 ## API Docs
 
@@ -561,7 +561,7 @@ point, `whatsapp/throttle.js`, which does two things:
 
 The first message on a session is never delayed — there is nothing for it to be
 too close to — so a single `POST /chats/send` still answers promptly. The gap is
-measured from the previous send's *start*, so a slow send does not stack its own
+measured from the previous send's _start_, so a slow send does not stack its own
 duration on top of it.
 
 This covers every send path: `/chats/send`, `/chats/send-bulk`, `/groups/send`,
@@ -570,7 +570,7 @@ the same moment is spaced out automatically instead of arriving as one burst.
 
 ### What this does not do
 
-Pacing removes *one* signal. It does not make an account welcome to message
+Pacing removes _one_ signal. It does not make an account welcome to message
 strangers. Whether a number gets flagged depends mostly on things this code
 cannot see: who the recipients are, whether they report the messages, how old and
 how warm the account is, and the fact that Baileys is not an official WhatsApp
