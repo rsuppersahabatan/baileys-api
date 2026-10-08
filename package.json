@@ -28,7 +28,7 @@
     "protobufjs": "^7.6.6"
   },
   "dependencies": {
-    "@innovatorssoft/baileys": "^7.4.7",
+    "@innovatorssoft/baileys": "^7.4.8",
     "axios": "^1.13.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
